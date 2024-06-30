@@ -1,0 +1,15 @@
+cargo-features = ["profile-rustflags"]
+
+[workspace]
+resolver = "2"
+members = [
+    "compass",
+    "macros",
+]
+
+[profile.dev]
+rustflags = ["-Z", "threads=8"]
+
+[workspace.dependencies]
+strum = "0.26.2"
+strum_macros = "0.26.2"

@@ -1,0 +1,147 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - README.md
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - README.md
+  schedule:
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Tag name for release"
+        required: false
+        default: nightly
+
+jobs:
+  test:
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        neovim: [stable, nightly]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Neovim ${{ matrix.neovim }}
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.neovim }}
+      - name: Install latest nightly rustc
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Run unit tests
+        run: |
+          cargo build
+          cargo test
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy
+      - run: cargo clippy -- -D warnings
+
+  format:
+    name: format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
+      - run: cargo fmt --check
+
+  build:
+    needs: [test, clippy, format]
+    name: build for ${{ matrix.platform.os_name }}
+    runs-on: ${{ matrix.platform.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - os_name: linux-x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            lib_name: libcompass
+            lib_extension: so
+
+          - os_name: mac-x86_64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            lib_name: libcompass
+            lib_extension: dylib
+
+          - os_name: mac-aarch64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            lib_name: libcompass
+            lib_extension: dylib
+
+          - os_name: windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            lib_name: compass
+            lib_extension: dll
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build libraries
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          command: "build"
+          target: ${{ matrix.platform.target }}
+          toolchain: nightly
+          args: "--locked --release"
+          strip: true
+      - name: Upload libraries
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform.os_name }}
+          path: target/${{ matrix.platform.target }}/release/${{ matrix.platform.lib_name }}.${{ matrix.platform.lib_extension }}
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+
+      - run: |
+          mv linux-x86_64/libcompass.so linux-x86_64.so
+          mv mac-aarch64/libcompass.dylib mac-aarch64.dylib
+          mv mac-x86_64/libcompass.dylib mac-x86_64.dylib
+          mv windows-x86_64/compass.dll windows-x86_64.dll
+          gh release delete nightly --yes || true
+          git push -d origin nightly || true
+
+      - name: release
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          make_latest: true
+          tag_name: nightly
+          files: |
+            linux-x86_64.so
+            mac-aarch64.dylib
+            mac-x86_64.dylib
+            windows-x86_64.dll

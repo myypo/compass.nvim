@@ -1,0 +1,23 @@
+[package]
+name = "compass"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+macros = { path = "../macros" }
+nvim-oxi = { version = "0.5.1", features = ["neovim-0-10", "test"] }
+
+serde = "1.0.201"
+serde_json = "1.0.117"
+
+anyhow = "1.0.83"
+thiserror = "1.0.60"
+
+typed-builder = "0.18.2"
+chrono = { version = "0.4.38" }
+bitcode = "0.6.0"
+
+strum = { workspace = true }
+strum_macros = { workspace = true }
