@@ -6,9 +6,11 @@
 
 - **Linux x86_64**, **MacOS ARM64/x86_64** or **Windows x86_64**.
 
-- Neovim **v0.10.0** or **nightly**. Earlier versions are unlikely to work.
+- Neovim **v0.10.0** or **nightly (might be broken)**. Earlier versions are unlikely to work.
 
-- For installation with make script: **GNU Make** and **curl** installed and in PATH.
+- For installation with make script: **GNU Make** and **curl** installed and in PATH OR **Rust toolchain** to compile yourself.
+
+- Recommended: for persisting marks across sessions a **session manager plugin** is required that saves buffer data.
 
 ## 🔌 Installation
 
@@ -22,7 +24,8 @@
 }
 ```
 
-The plugin uses [nvim-oxi](https://github.com/noib3/nvim-oxi) to use Rust as the plugin language.
+The plugin uses [nvim-oxi](https://github.com/noib3/nvim-oxi)
+to make it possible to use Rust instead of lua/vimscript.
 
 The provided above installation snippet will download a pre-built by GitHub action library which should
 work out of the box, but you can also build it yourself, provided, you have Rust toolchain installed.

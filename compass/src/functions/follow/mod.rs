@@ -14,7 +14,7 @@ use crate::{
 };
 
 use anyhow::anyhow;
-use nvim_oxi::api::{get_current_win, Buffer};
+use nvim_oxi::api::{get_current_win, set_current_buf, Buffer};
 
 pub fn get_follow(sync_tracker: SyncTracker) -> impl Fn(Option<FollowOptions>) -> Result<()> {
     move |opts: Option<FollowOptions>| {
@@ -35,12 +35,14 @@ pub fn get_follow(sync_tracker: SyncTracker) -> impl Fn(Option<FollowOptions>) -
 
                     if let Some(only) = records_iter.next() {
                         if records_iter.next().is_none() {
+                            set_current_buf(&only.buf)?;
                             return only.goto(get_current_win(), FrecencyType::AbsoluteGoto);
                         };
                     };
                 };
 
-                let (record_vec, jump_keymaps) = follow_buf(target, &tracker.list, max_windows)?;
+                let (record_vec, jump_keymaps) =
+                    follow_buf(target, &mut tracker.list, max_windows)?;
 
                 open_grid(
                     &record_vec,
@@ -57,7 +59,7 @@ pub fn get_follow(sync_tracker: SyncTracker) -> impl Fn(Option<FollowOptions>) -
 
 fn follow_buf(
     target: Buffer,
-    record_list: &TrackList<Record>,
+    record_list: &mut TrackList<Record>,
     max_windows: WindowGridSize,
 ) -> Result<(Vec<&Record>, Vec<&JumpKeymap>)> {
     let mut record_vec = Vec::<&Record>::new();
@@ -137,7 +139,7 @@ mod tests {
         ); // j
 
         let (record_vec, jump_keymaps) =
-            follow_buf(buf1, &record_list, WindowGridSize::default()).unwrap();
+            follow_buf(buf1, &mut record_list, WindowGridSize::default()).unwrap();
 
         assert_eq!(
             record_vec.first().unwrap().typ,

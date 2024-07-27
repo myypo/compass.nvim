@@ -1,8 +1,8 @@
 use crate::{
     common_types::CursorPosition,
     frecency::Frecency,
-    state::{Record, TrackList, TypeRecord},
-    ui::record_mark::{create_record_mark, recreate_mark_time},
+    state::{record::LazyExtmark, Record, TrackList, TypeRecord},
+    ui::record_mark::recreate_mark_time,
     Error, Result,
 };
 
@@ -25,7 +25,7 @@ pub struct PersistentRecord {
     pub buf_handle: i32,
     pub typ: TypeRecord,
     pub frecency: Frecency,
-    pub cursor: CursorPosition,
+    pub cursor_pos: CursorPosition,
 }
 
 #[derive(Decode, Encode)]
@@ -40,16 +40,16 @@ impl TryFrom<&Record> for PersistentRecord {
         Record {
             buf,
             typ,
-            extmark,
+            lazy_extmark,
             frecency,
         }: &Record,
     ) -> Result<Self> {
-        let cursor = extmark.get_pos(buf.clone());
+        let cursor_pos = lazy_extmark.get_pos(buf.clone());
 
         Ok(Self {
             buf_handle: buf.handle(),
             typ: *typ,
-            cursor,
+            cursor_pos,
             // TODO: this is bad
             frecency: frecency.clone(),
         })
@@ -83,15 +83,13 @@ impl TryFrom<Session> for TrackList<Record> {
             TrackList::with_capacity(session.data.records.len(), session.data.pos);
 
         for (i, r) in session.data.records.into_iter().enumerate() {
-            let extmark = create_record_mark(
-                r.buf_handle.into(),
-                &r.cursor,
-                recreate_mark_time(i, track_list.pos),
-            )?;
             track_list.push_plain(Record {
                 buf: r.buf_handle.into(),
                 typ: r.typ,
-                extmark,
+                lazy_extmark: LazyExtmark::Unloaded((
+                    r.cursor_pos,
+                    recreate_mark_time(i, track_list.pos),
+                )),
                 frecency: r.frecency,
             });
         }

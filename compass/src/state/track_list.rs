@@ -1,6 +1,6 @@
 use std::collections::vec_deque::{Iter, IterMut, VecDeque};
 
-use crate::frecency::FrecencyScore;
+use crate::{frecency::FrecencyScore, Result};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TrackList<T> {
@@ -13,6 +13,101 @@ impl<T> Default for TrackList<T> {
         Self {
             ring: VecDeque::default(),
             pos: None,
+        }
+    }
+}
+
+pub trait Mark {
+    fn load_extmark(&mut self) -> Result<()>;
+    fn open_buf(&self) -> Result<()>;
+}
+
+impl<T> TrackList<T>
+where
+    T: Mark + IndicateCloseness,
+{
+    pub fn close_past_mut(&mut self) -> Option<&mut T> {
+        match self.pos {
+            Some(p) => self.get_mut(p + 1),
+            None => self.get_mut(0),
+        }
+    }
+
+    pub fn close_future_mut(&mut self) -> Option<&mut T> {
+        match self.pos {
+            Some(p) => self.get_mut(p),
+            None => None,
+        }
+    }
+
+    pub fn make_close_past(&mut self, idx: usize) -> Option<()> {
+        if let Some(p) = self.pos {
+            if p + 1 == idx {
+                return Some(());
+            }
+        }
+
+        let val = self.ring.get_mut(idx)?;
+        val.as_close_past();
+
+        let len = self.len();
+        if len == 1 {
+            self.pos = None;
+            return Some(());
+        }
+
+        match self.pos {
+            Some(p) => {
+                match idx.ge(&p) {
+                    // past -> close past
+                    true => {
+                        if let Some(old_close) = self.close_past_mut() {
+                            old_close.as_past()
+                        };
+
+                        self.ring.swap(idx, p);
+
+                        if p + 1 < idx {
+                            self.ring.make_contiguous()[p..=idx].rotate_right(1);
+                        } else {
+                            self.pos = p.checked_sub(1);
+                        }
+
+                        Some(())
+                    }
+
+                    // future -> close past
+                    false => {
+                        match p.checked_sub(1) {
+                            Some(new_pos) => {
+                                if p == idx {
+                                    if let Some(close_new) = self.ring.get_mut(new_pos) {
+                                        close_new.as_close_future();
+                                    };
+                                }
+
+                                self.pos = Some(new_pos);
+                                self.ring.swap(idx, p);
+                                self.ring.make_contiguous()[idx..=new_pos].rotate_right(1);
+                            }
+                            None => {
+                                self.pos = None;
+                            }
+                        }
+
+                        Some(())
+                    }
+                }
+            }
+            None => {
+                if idx != 0 {
+                    self.ring.front_mut()?.as_past();
+                }
+
+                self.ring.make_contiguous()[0..=idx].rotate_right(1);
+
+                Some(())
+            }
         }
     }
 }
@@ -49,13 +144,6 @@ impl<T> TrackList<T> {
         p + 1 < self.ring.len()
     }
 
-    pub fn get_close_past(&self) -> Option<&T> {
-        match self.pos {
-            Some(p) => self.get(p + 1),
-            None => self.ring.front(),
-        }
-    }
-
     pub fn get(&self, i: usize) -> Option<&T> {
         self.ring.get(i)
     }
@@ -72,19 +160,19 @@ impl<T> TrackList<T> {
 
 impl<T> TrackList<T>
 where
-    T: IndicateCloseness,
+    T: IndicateCloseness + Mark,
 {
     pub fn push(&mut self, val: T) {
         match self.pos {
             Some(p) => {
-                if let Some(old_close) = self.ring.get(p + 1) {
+                if let Some(old_close) = self.ring.get_mut(p + 1) {
                     old_close.as_past()
                 };
 
                 self.ring.insert(p + 1, val);
             }
             None => {
-                if let Some(first) = self.ring.front() {
+                if let Some(first) = self.ring.front_mut() {
                     first.as_past();
                 };
 
@@ -93,7 +181,7 @@ where
         }
     }
 
-    pub fn step_past_mut(&mut self) -> Option<&mut T> {
+    pub fn step_past(&mut self) -> Option<&mut T> {
         if !self.past_exists() {
             return None;
         };
@@ -101,111 +189,51 @@ where
         let pos = self.pos.map(|p| p + 1).unwrap_or(0);
         self.pos = Some(pos);
 
-        if let Some(close_past) = self.ring.get(pos + 1) {
+        {
+            let curr = self.ring.get_mut(pos)?;
+            curr.open_buf().ok()?;
+            let _ = curr.load_extmark();
+            curr.as_close_future();
+        };
+
+        if let Some(close_past) = self.ring.get_mut(pos + 1) {
+            let _ = close_past.load_extmark();
             close_past.as_close_past();
         };
         if let Some(i) = pos.checked_sub(1) {
-            if let Some(fut) = self.ring.get(i) {
+            if let Some(fut) = self.ring.get_mut(i) {
+                let _ = fut.load_extmark();
                 fut.as_future();
             };
         };
 
-        let curr = self.ring.get_mut(pos)?;
-        curr.as_close_future();
-
-        Some(curr)
+        self.ring.get_mut(pos)
     }
 
-    pub fn step_future_mut(&mut self) -> Option<&mut T> {
+    pub fn step_future(&mut self) -> Option<&mut T> {
         let pos = self.pos?;
 
-        if let Some(past) = self.ring.get(pos + 1) {
+        {
+            let curr = self.ring.get_mut(pos)?;
+            curr.open_buf().ok()?;
+            let _ = curr.load_extmark();
+            curr.as_close_past();
+        }
+
+        if let Some(past) = self.ring.get_mut(pos + 1) {
+            let _ = past.load_extmark();
             past.as_past();
         };
-        if let Some(i) = pos.checked_sub(1) {
-            if let Some(close_fut) = self.ring.get(i) {
+
+        self.pos = pos.checked_sub(1);
+        if let Some(i) = self.pos {
+            if let Some(close_fut) = self.ring.get_mut(i) {
+                let _ = close_fut.load_extmark();
                 close_fut.as_close_future();
             };
         };
 
-        self.pos = pos.checked_sub(1);
-
-        let curr = self.ring.get_mut(pos)?;
-        curr.as_close_past();
-
-        Some(curr)
-    }
-
-    pub fn make_close_past(&mut self, idx: usize) -> Option<()> {
-        if let Some(p) = self.pos {
-            if p + 1 == idx {
-                return Some(());
-            }
-        }
-
-        let val = self.ring.get(idx)?;
-        val.as_close_past();
-
-        let len = self.len();
-        if len == 1 {
-            self.pos = None;
-            return Some(());
-        }
-
-        match self.pos {
-            Some(p) => {
-                match idx.ge(&p) {
-                    // past -> close past
-                    true => {
-                        if let Some(old_close) = self.get_close_past() {
-                            old_close.as_past()
-                        };
-
-                        self.ring.swap(idx, p);
-
-                        if p + 1 < idx {
-                            self.ring.make_contiguous()[p..=idx].rotate_right(1);
-                        } else {
-                            self.pos = p.checked_sub(1);
-                        }
-
-                        Some(())
-                    }
-
-                    // future -> close past
-                    false => {
-                        match p.checked_sub(1) {
-                            Some(new_pos) => {
-                                if p == idx {
-                                    if let Some(close_new) = self.ring.get(new_pos) {
-                                        close_new.as_close_future();
-                                    };
-                                }
-
-                                self.pos = Some(new_pos);
-                                //self.ring.swap(idx, new_pos);
-                                self.ring.swap(idx, p);
-                                self.ring.make_contiguous()[idx..=new_pos].rotate_right(1);
-                            }
-                            None => {
-                                self.pos = None;
-                            }
-                        }
-
-                        Some(())
-                    }
-                }
-            }
-            None => {
-                if idx != 0 {
-                    self.ring.front()?.as_past();
-                }
-
-                self.ring.make_contiguous()[0..=idx].rotate_right(1);
-
-                Some(())
-            }
-        }
+        self.ring.get_mut(pos)
     }
 
     pub fn pop_past(&mut self) -> Option<T> {
@@ -215,7 +243,7 @@ where
 
         let pos = self.pos.map(|p| p + 1).unwrap_or(0);
 
-        if let Some(new_close) = self.ring.get(pos + 1) {
+        if let Some(new_close) = self.ring.get_mut(pos + 1) {
             new_close.as_close_past();
         };
 
@@ -227,7 +255,7 @@ where
         let new_pos = pos.checked_sub(1);
 
         if let Some(i) = new_pos {
-            if let Some(new_close) = self.ring.get(i) {
+            if let Some(new_close) = self.ring.get_mut(i) {
                 new_close.as_close_future();
             }
         }
@@ -242,19 +270,25 @@ impl<T> TrackList<T>
 where
     T: FrecencyScore,
 {
-    pub fn frecency(&self) -> Vec<(usize, &T)> {
-        let mut vec: Vec<(usize, &T)> = self.ring.iter().enumerate().collect();
-        vec.sort_by_key(|(_, v)| v.total_score());
+    pub fn frecency(&self) -> Vec<&T> {
+        let mut vec: Vec<&T> = self.ring.iter().collect();
+        vec.sort_by_key(|v| v.total_score());
+        vec
+    }
+
+    pub fn frecency_mut(&mut self) -> Vec<&mut T> {
+        let mut vec: Vec<&mut T> = self.ring.iter_mut().collect();
+        vec.sort_by_key(|v| v.total_score());
         vec
     }
 }
 
 pub trait IndicateCloseness {
-    fn as_past(&self);
-    fn as_future(&self);
+    fn as_past(&mut self);
+    fn as_future(&mut self);
 
-    fn as_close_past(&self);
-    fn as_close_future(&self);
+    fn as_close_past(&mut self);
+    fn as_close_future(&mut self);
 }
 
 #[cfg(test)]
@@ -269,10 +303,18 @@ mod tests {
         }
     }
     impl IndicateCloseness for Num {
-        fn as_past(&self) {}
-        fn as_future(&self) {}
-        fn as_close_past(&self) {}
-        fn as_close_future(&self) {}
+        fn as_past(&mut self) {}
+        fn as_future(&mut self) {}
+        fn as_close_past(&mut self) {}
+        fn as_close_future(&mut self) {}
+    }
+    impl Mark for Num {
+        fn load_extmark(&mut self) -> Result<()> {
+            Ok(())
+        }
+        fn open_buf(&self) -> Result<()> {
+            Ok(())
+        }
     }
 
     #[test]
@@ -287,14 +329,14 @@ mod tests {
 
         assert!(list.pos.is_none());
 
-        assert_eq!(list.step_past_mut().unwrap(), &4.into());
-        assert_eq!(list.step_past_mut().unwrap(), &3.into());
+        assert_eq!(list.step_past().unwrap(), &4.into());
+        assert_eq!(list.step_past().unwrap(), &3.into());
 
-        assert_eq!(list.step_future_mut().unwrap(), &3.into());
+        assert_eq!(list.step_future().unwrap(), &3.into());
 
-        assert_eq!(list.step_past_mut().unwrap(), &3.into());
-        assert_eq!(list.step_past_mut().unwrap(), &2.into());
-        assert_eq!(list.step_past_mut().unwrap(), &1.into());
+        assert_eq!(list.step_past().unwrap(), &3.into());
+        assert_eq!(list.step_past().unwrap(), &2.into());
+        assert_eq!(list.step_past().unwrap(), &1.into());
     }
 
     #[test]
@@ -304,28 +346,28 @@ mod tests {
         list.push(2.into());
         list.push(3.into());
 
-        assert_eq!(list.step_future_mut(), None);
-        assert_eq!(list.step_future_mut(), None);
+        assert!(list.step_future().is_none());
+        assert!(list.step_future().is_none());
 
         assert!(list.pos.is_none());
-        assert_eq!(list.step_future_mut(), None);
-        assert_eq!(list.step_future_mut(), None);
+        assert!(list.step_future().is_none());
+        assert!(list.step_future().is_none());
 
-        assert_eq!(list.step_past_mut().unwrap(), &3.into());
+        assert_eq!(list.step_past().unwrap(), &3.into());
 
         list.push(22.into());
 
-        assert_eq!(list.step_past_mut().unwrap(), &22.into());
-        assert_eq!(list.step_past_mut().unwrap(), &2.into());
-        assert_eq!(list.step_past_mut().unwrap(), &1.into());
+        assert_eq!(list.step_past().unwrap(), &22.into());
+        assert_eq!(list.step_past().unwrap(), &2.into());
+        assert_eq!(list.step_past().unwrap(), &1.into());
 
-        assert_eq!(list.step_past_mut(), None);
+        assert!(list.step_past().is_none());
         assert_eq!(list.get(list.pos.unwrap()).unwrap(), &1.into());
-        assert_eq!(list.step_past_mut(), None);
-        assert_eq!(list.step_future_mut().unwrap(), &1.into());
-        assert_eq!(list.step_future_mut().unwrap(), &2.into());
-        assert_eq!(list.step_future_mut().unwrap(), &22.into());
-        assert_eq!(list.step_future_mut().unwrap(), &3.into());
+        assert!(list.step_past().is_none());
+        assert_eq!(list.step_future().unwrap(), &1.into());
+        assert_eq!(list.step_future().unwrap(), &2.into());
+        assert_eq!(list.step_future().unwrap(), &22.into());
+        assert_eq!(list.step_future().unwrap(), &3.into());
     }
 
     #[test]
@@ -335,9 +377,9 @@ mod tests {
         list.push(2.into());
         list.push(3.into());
 
-        assert_eq!(list.step_past_mut().unwrap(), &3.into());
+        assert_eq!(list.step_past().unwrap(), &3.into());
         list.push(33.into());
-        assert_eq!(list.step_past_mut().unwrap(), &33.into());
+        assert_eq!(list.step_past().unwrap(), &33.into());
     }
 
     #[test]
@@ -347,12 +389,12 @@ mod tests {
         list.push(2.into());
         list.push(3.into());
 
-        assert_eq!(list.step_past_mut().unwrap(), &3.into());
-        assert_eq!(list.step_past_mut().unwrap(), &2.into());
-        assert_eq!(list.step_past_mut().unwrap(), &1.into());
+        assert_eq!(list.step_past().unwrap(), &3.into());
+        assert_eq!(list.step_past().unwrap(), &2.into());
+        assert_eq!(list.step_past().unwrap(), &1.into());
 
         list.push(0.into());
-        assert_eq!(list.step_past_mut().unwrap(), &0.into());
+        assert_eq!(list.step_past().unwrap(), &0.into());
     }
 
     #[test]
@@ -360,12 +402,12 @@ mod tests {
         let mut list = TrackList::<Num>::default();
         list.push(1.into());
 
-        assert_eq!(list.step_past_mut().unwrap(), &1.into());
-        assert_eq!(list.step_past_mut(), None);
-        assert_eq!(list.step_future_mut().unwrap(), &1.into());
-        assert_eq!(list.step_future_mut(), None);
-        assert_eq!(list.step_future_mut(), None);
-        assert_eq!(list.step_past_mut().unwrap(), &1.into());
+        assert_eq!(list.step_past().unwrap(), &1.into());
+        assert!(list.step_past().is_none());
+        assert_eq!(list.step_future().unwrap(), &1.into());
+        assert!(list.step_future().is_none());
+        assert!(list.step_future().is_none());
+        assert_eq!(list.step_past().unwrap(), &1.into());
     }
 
     #[test]

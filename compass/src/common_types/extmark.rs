@@ -4,6 +4,8 @@ use crate::{common_types::CursorPosition, state::get_namespace, Result};
 
 use nvim_oxi::api::{opts::GetExtmarkByIdOpts, Buffer};
 
+use super::CursorRange;
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Extmark {
     id: u32,
@@ -32,6 +34,10 @@ impl Extmark {
         } else {
             pos
         }
+    }
+
+    pub fn get_range(&self, buf: Buffer) -> CursorRange {
+        Into::<CursorRange>::into(&self.get_pos(buf))
     }
 
     pub fn delete(&self, mut buf: Buffer) -> Result<()> {

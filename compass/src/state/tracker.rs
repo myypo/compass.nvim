@@ -1,9 +1,9 @@
-use super::{load_session, save_session, Session, Tick};
+use super::{load_session, save_session, track_list::Mark, Session, Tick};
 use crate::{
     common_types::CursorPosition,
     config::get_config,
     state::{ChangeTypeRecord, Record, TrackList, TypeRecord},
-    ui::record_mark::{recreate_mark_time, update_record_mark, RecordMarkTime},
+    ui::record_mark::RecordMarkTime,
     Result,
 };
 use std::{
@@ -42,26 +42,20 @@ impl Tracker {
         Ok(())
     }
 
-    fn renew_buf_record_mark(&mut self, curr_buf: Buffer) -> Result<()> {
+    pub fn renew_buf_record_marks(&mut self, curr_buf: Buffer) -> Result<()> {
         if self.renewed_bufs.iter().any(|b| b.clone() == curr_buf) {
             return Ok(());
         };
 
-        if let Some((i, r)) = self
+        for r in self
             .list
-            .iter_from_future()
-            .enumerate()
-            .find(|(_, r)| r.buf == curr_buf)
+            .iter_mut_from_future()
+            .filter(|r| r.buf == curr_buf)
         {
-            update_record_mark(
-                &r.extmark,
-                r.buf.clone(),
-                &r.extmark.get_pos(r.buf.clone()),
-                recreate_mark_time(i, self.list.pos),
-            )?;
+            r.load_extmark()?;
+        }
 
-            self.renewed_bufs.push(curr_buf);
-        };
+        self.renewed_bufs.push(curr_buf);
 
         Ok(())
     }
@@ -117,14 +111,16 @@ impl Tracker {
         let win = get_current_win();
         let pos_new: CursorPosition = win.get_cursor()?.into();
 
-        if let Some((i, nearby_record)) =
-            self.list
-                .iter_mut_from_future()
-                .enumerate()
-                .find(|(_, Record { buf, extmark, .. })| {
-                    buf_new == *buf && { extmark.get_pos(buf_new.clone()).is_nearby(&pos_new) }
-                })
-        {
+        if let Some((i, nearby_record)) = self.list.iter_mut_from_future().enumerate().find(
+            |(
+                _,
+                Record {
+                    buf, lazy_extmark, ..
+                },
+            )| {
+                buf_new == *buf && { lazy_extmark.get_pos(buf_new.clone()).is_nearby(&pos_new) }
+            },
+        ) {
             nearby_record.update(buf_new, tick_new, &pos_new, RecordMarkTime::PastClose)?;
 
             self.list.make_close_past(i);
@@ -163,7 +159,7 @@ impl SyncTracker {
         let conf = get_config();
 
         if conf.persistence.enable {
-            tracker.renew_buf_record_mark(buf_curr)?;
+            tracker.renew_buf_record_marks(buf_curr)?;
 
             let path = conf.persistence.path.as_ref().ok_or_else(|| {
                 anyhow!(

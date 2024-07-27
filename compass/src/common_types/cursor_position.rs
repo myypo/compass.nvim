@@ -3,9 +3,15 @@ use crate::config::get_config;
 use bitcode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-/// 1,0 indexed in the editor
+/// 1,0 indexed
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize, Decode, Encode)]
 pub struct CursorPosition {
+    pub line: usize,
+    pub col: usize,
+}
+
+/// 0,0 indexed
+pub struct CursorRange {
     pub line: usize,
     pub col: usize,
 }
@@ -55,6 +61,15 @@ impl CursorPosition {
 impl From<(usize, usize)> for CursorPosition {
     fn from((line, col): (usize, usize)) -> Self {
         Self { line, col }
+    }
+}
+
+impl From<&CursorPosition> for CursorRange {
+    fn from(value: &CursorPosition) -> Self {
+        Self {
+            line: value.line.saturating_sub(1),
+            col: value.col,
+        }
     }
 }
 

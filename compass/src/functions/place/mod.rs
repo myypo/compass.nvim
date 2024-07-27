@@ -29,9 +29,14 @@ pub fn get_place(sync_tracker: SyncTracker) -> impl Fn(Option<PlaceOptions>) -> 
 
                         let Some((i, old_record)) =
                             tracker.list.iter_mut_from_future().enumerate().find(
-                                |(_, Record { buf, extmark, .. })| {
+                                |(
+                                    _,
+                                    Record {
+                                        buf, lazy_extmark, ..
+                                    },
+                                )| {
                                     buf_curr == *buf && {
-                                        extmark.get_pos(buf_curr.clone()).is_nearby(&pos_curr)
+                                        lazy_extmark.get_pos(buf_curr.clone()).is_nearby(&pos_curr)
                                     }
                                 },
                             )

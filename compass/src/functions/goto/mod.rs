@@ -6,7 +6,7 @@ use opts::*;
 
 use crate::{frecency::FrecencyType, state::SyncTracker, InputError, Result};
 
-use nvim_oxi::api::get_current_win;
+use nvim_oxi::api::{get_current_win, set_current_buf};
 
 pub fn get_goto(tracker: SyncTracker) -> impl Fn(Option<GotoOptions>) -> Result<()> {
     move |opts: Option<GotoOptions>| {
@@ -16,19 +16,15 @@ pub fn get_goto(tracker: SyncTracker) -> impl Fn(Option<GotoOptions>) -> Result<
 
         match opts {
             GotoOptions::Relative(RelativeOptions { direction }) => {
-                let record = match direction {
-                    Direction::Back => tracker.list.step_past_mut().ok_or_else(|| {
-                        InputError::NoRecords("no more records to go back to".to_owned())
-                    })?,
-                    Direction::Forward => tracker.list.step_future_mut().ok_or_else(|| {
-                        InputError::NoRecords(
-                            "no more records ahead of the current point".to_owned(),
-                        )
-                    })?,
+                let Some(record) = (match direction {
+                    Direction::Back => tracker.list.step_past(),
+                    Direction::Forward => tracker.list.step_future(),
+                }) else {
+                    return Ok(());
                 };
 
                 let win = get_current_win();
-                record.goto(win, FrecencyType::RelativeGoto)?;
+                record.goto(win, FrecencyType::RelativeGoto)
             }
 
             GotoOptions::Absolute(AbsoluteOptions {
@@ -43,7 +39,8 @@ pub fn get_goto(tracker: SyncTracker) -> impl Fn(Option<GotoOptions>) -> Result<
                     ))
                 })?;
 
-                record.goto(win, FrecencyType::AbsoluteGoto)?;
+                set_current_buf(&record.buf)?;
+                record.goto(win, FrecencyType::AbsoluteGoto)
             }
 
             GotoOptions::Absolute(AbsoluteOptions {
@@ -57,7 +54,8 @@ pub fn get_goto(tracker: SyncTracker) -> impl Fn(Option<GotoOptions>) -> Result<
                     .find(|r| r.buf == t.buf && r.frecency.latest_timestamp() == t.timestamp)
                     .ok_or_else(|| InputError::NoRecords("no such record identified".to_owned()))?;
 
-                record.goto(win, FrecencyType::AbsoluteGoto)?;
+                set_current_buf(&record.buf)?;
+                record.goto(win, FrecencyType::AbsoluteGoto)
             }
 
             GotoOptions::Absolute(AbsoluteOptions {
@@ -73,10 +71,9 @@ pub fn get_goto(tracker: SyncTracker) -> impl Fn(Option<GotoOptions>) -> Result<
                     })
                     .ok_or_else(|| InputError::NoRecords("no such record identified".to_owned()))?;
 
-                record.goto(win, FrecencyType::AbsoluteGoto)?;
+                set_current_buf(&record.buf)?;
+                record.goto(win, FrecencyType::AbsoluteGoto)
             }
         }
-
-        Ok(())
     }
 }

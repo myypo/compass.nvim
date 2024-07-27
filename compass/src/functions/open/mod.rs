@@ -9,7 +9,6 @@ use crate::{
     config::{get_config, WindowGridSize},
     state::{Record, SyncTracker, TrackList, Tracker},
     ui::{
-        ensure_buf_loaded::ensure_buf_loaded,
         grid::{open_grid, GridLayout},
         tab::{close_tab, open_tab},
     },
@@ -17,7 +16,7 @@ use crate::{
 };
 use std::collections::HashSet;
 
-use nvim_oxi::api::Buffer;
+use nvim_oxi::api::{set_current_buf, Buffer};
 
 pub fn get_open(tracker: SyncTracker) -> impl Fn(Option<OpenOptions>) -> Result<()> {
     move |opts: Option<OpenOptions>| {
@@ -26,10 +25,10 @@ pub fn get_open(tracker: SyncTracker) -> impl Fn(Option<OpenOptions>) -> Result<
             max_windows,
         } = opts.unwrap_or_default();
 
-        let tracker = tracker.lock()?;
+        let mut tracker = tracker.lock()?;
 
         let record_list: Vec<&Record> = {
-            let iter = get_unique_bufs_priority(max_windows, &tracker.list)?.into_iter();
+            let iter = get_unique_bufs_priority(max_windows, &mut tracker.list)?.into_iter();
             match record_types {
                 Some(record_types) => iter
                     .filter(|&r| record_types.iter().any(|&f| f == r.typ.into()))
@@ -60,7 +59,7 @@ pub fn get_open(tracker: SyncTracker) -> impl Fn(Option<OpenOptions>) -> Result<
 
 pub fn get_unique_bufs_priority(
     max_windows: WindowGridSize,
-    track_list: &TrackList<Record>,
+    track_list: &mut TrackList<Record>,
 ) -> Result<Vec<&Record>> {
     let mut seen_bufs = HashSet::<Buffer>::with_capacity(max_windows.into());
     let mut record_list = Vec::<&Record>::with_capacity(max_windows.into());
@@ -68,10 +67,9 @@ pub fn get_unique_bufs_priority(
     open_tab()?;
 
     let frecency_list = track_list.frecency();
-    for (i, r) in frecency_list.iter() {
+    for r in frecency_list.iter() {
         if seen_bufs.insert(r.buf.clone()) {
-            ensure_buf_loaded(*i, track_list.pos, r)?;
-
+            set_current_buf(&r.buf)?;
             record_list.push(r);
 
             if record_list.len() >= max_windows.into() {
@@ -79,11 +77,12 @@ pub fn get_unique_bufs_priority(
             }
         }
     }
-    if record_list.len() < max_windows.into() {
-        for (i, r) in frecency_list.iter() {
-            if !record_list.iter().any(|&col_rec| col_rec == *r) {
-                ensure_buf_loaded(*i, track_list.pos, r)?;
 
+    if record_list.len() < max_windows.into() {
+        let frecency_list = track_list.frecency();
+        for r in frecency_list.iter() {
+            if !record_list.iter().any(|&col_rec| col_rec == *r) {
+                set_current_buf(&r.buf)?;
                 record_list.push(r);
             }
 
@@ -181,7 +180,7 @@ mod tests {
         .unwrap();
         tracker.list.push(rec4.clone());
 
-        let got = get_unique_bufs_priority(2.try_into().unwrap(), &tracker.list).unwrap();
+        let got = get_unique_bufs_priority(2.try_into().unwrap(), &mut tracker.list).unwrap();
         let mut iter = got.iter();
 
         assert_eq!(got.len(), 2);

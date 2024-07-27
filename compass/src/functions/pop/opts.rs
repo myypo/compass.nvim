@@ -18,6 +18,7 @@ impl Default for PopOptions {
 
 #[derive(Debug, Deserialize)]
 pub struct RelativeOptions {
+    #[serde(default)]
     pub direction: Direction,
 }
 
@@ -29,10 +30,11 @@ impl Default for RelativeOptions {
     }
 }
 
-#[derive(Debug, Deserialize, EnumString)]
+#[derive(Default, Debug, Deserialize, EnumString)]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum Direction {
+    #[default]
     Back,
     Forward,
 }

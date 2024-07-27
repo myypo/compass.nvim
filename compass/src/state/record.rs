@@ -1,5 +1,5 @@
 use crate::{
-    common_types::{CursorPosition, Extmark},
+    common_types::{CursorPosition, CursorRange, Extmark},
     frecency::{Frecency, FrecencyScore, FrecencyType, FrecencyWeight},
     state::track_list::IndicateCloseness,
     ui::record_mark::{create_record_mark, update_record_mark, RecordMarkTime},
@@ -8,15 +8,32 @@ use crate::{
 use std::fmt::Display;
 
 use bitcode::{Decode, Encode};
-use nvim_oxi::api::{command, Buffer, Window};
+use nvim_oxi::api::{command, set_current_buf, Buffer, Window};
 use serde::Deserialize;
+
+use super::track_list::Mark;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Record {
     pub buf: Buffer,
     pub typ: TypeRecord,
-    pub extmark: Extmark,
+    pub lazy_extmark: LazyExtmark,
     pub frecency: Frecency,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum LazyExtmark {
+    Loaded(Extmark),
+    Unloaded((CursorPosition, RecordMarkTime)),
+}
+
+impl LazyExtmark {
+    pub fn get_pos(&self, buf: Buffer) -> CursorPosition {
+        match self {
+            Self::Loaded(e) => e.get_pos(buf),
+            Self::Unloaded((p, _)) => p.clone(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Decode, Encode)]
@@ -59,13 +76,26 @@ impl TypeRecord {
 
 impl Record {
     pub fn try_new(buf: Buffer, typ: TypeRecord, pos: &CursorPosition) -> Result<Self> {
-        let extmark = create_record_mark(buf.clone(), pos, RecordMarkTime::PastClose)?;
+        let extmark = create_record_mark(buf.clone(), &pos.into(), RecordMarkTime::PastClose)?;
 
         Ok(Self {
             buf,
             typ,
-            extmark,
+            lazy_extmark: LazyExtmark::Loaded(extmark),
             frecency: Frecency::new(),
+        })
+    }
+
+    pub fn get_or_init_extmark(&mut self) -> Result<Extmark> {
+        Ok(match &self.lazy_extmark {
+            LazyExtmark::Loaded(e) => e.clone(),
+            LazyExtmark::Unloaded((p, t)) => {
+                let extmark =
+                    create_record_mark(self.buf.clone(), &Into::<CursorRange>::into(p), *t)?;
+                self.lazy_extmark = LazyExtmark::Loaded(extmark.clone());
+
+                extmark
+            }
         })
     }
 
@@ -76,7 +106,7 @@ impl Record {
         pos: &CursorPosition,
         hl: RecordMarkTime,
     ) -> Result<()> {
-        update_record_mark(&self.extmark, buf.clone(), pos, hl)?;
+        update_record_mark(&self.get_or_init_extmark()?, buf.clone(), &pos.into(), hl)?;
 
         self.typ = typ;
 
@@ -86,10 +116,10 @@ impl Record {
     }
 
     fn jump(&mut self, mut win: Window) -> Result<()> {
-        let CursorPosition { line, col } = self.extmark.get_pos(self.buf.clone());
-
+        // Leave an entry in the jumplist
         command("normal! m'")?;
-        win.set_buf(&self.buf)?;
+
+        let CursorPosition { line, col } = self.get_or_init_extmark()?.get_pos(self.buf.clone());
         win.set_cursor(line, col)?;
 
         Ok(())
@@ -105,43 +135,65 @@ impl Record {
 
     pub fn pop(&mut self, win: Window) -> Result<()> {
         self.jump(win)?;
-
-        self.extmark.delete(self.buf.clone())?;
+        self.get_or_init_extmark()?.delete(self.buf.clone())?;
 
         Ok(())
+    }
+
+    fn loaded_extmark(&self) -> Option<&Extmark> {
+        match &self.lazy_extmark {
+            LazyExtmark::Loaded(e) => Some(e),
+            _ => None,
+        }
     }
 }
 
 impl IndicateCloseness for Record {
-    fn as_past(&self) {
+    fn as_past(&mut self) {
+        let Some(ext) = self.loaded_extmark() else {
+            return;
+        };
+
         let _ = update_record_mark(
-            &self.extmark,
+            ext,
             self.buf.clone(),
-            &self.extmark.get_pos(self.buf.clone()),
+            &ext.get_range(self.buf.clone()),
             RecordMarkTime::Past,
         );
     }
-    fn as_future(&self) {
+    fn as_future(&mut self) {
+        let Some(ext) = self.loaded_extmark() else {
+            return;
+        };
+
         let _ = update_record_mark(
-            &self.extmark,
+            ext,
             self.buf.clone(),
-            &self.extmark.get_pos(self.buf.clone()),
+            &ext.get_range(self.buf.clone()),
             RecordMarkTime::Future,
         );
     }
-    fn as_close_past(&self) {
+    fn as_close_past(&mut self) {
+        let Some(ext) = self.loaded_extmark() else {
+            return;
+        };
+
         let _ = update_record_mark(
-            &self.extmark,
+            ext,
             self.buf.clone(),
-            &self.extmark.get_pos(self.buf.clone()),
+            &ext.get_range(self.buf.clone()),
             RecordMarkTime::PastClose,
         );
     }
-    fn as_close_future(&self) {
+    fn as_close_future(&mut self) {
+        let Some(ext) = self.loaded_extmark() else {
+            return;
+        };
+
         let _ = update_record_mark(
-            &self.extmark,
+            ext,
             self.buf.clone(),
-            &self.extmark.get_pos(self.buf.clone()),
+            &ext.get_range(self.buf.clone()),
             RecordMarkTime::FutureClose,
         );
     }
@@ -153,7 +205,30 @@ impl FrecencyScore for Record {
     }
 }
 
+impl Mark for Record {
+    fn load_extmark(&mut self) -> Result<()> {
+        match &self.lazy_extmark {
+            LazyExtmark::Unloaded((p, t)) => {
+                let extmark =
+                    create_record_mark(self.buf.clone(), &Into::<CursorRange>::into(p), *t)?;
+                self.lazy_extmark = LazyExtmark::Loaded(extmark.clone());
+
+                Ok(())
+            }
+
+            _ => Ok(()),
+        }
+    }
+
+    fn open_buf(&self) -> Result<()> {
+        set_current_buf(&self.buf)?;
+        Ok(())
+    }
+}
+
 mod tests {
+    use core::panic;
+
     use crate::state::get_namespace;
 
     use super::*;
@@ -180,6 +255,10 @@ mod tests {
                 &GetExtmarksOpts::builder().build(),
             )
             .unwrap()
-            .any(|e| e.0 == Into::<u32>::into(&got.extmark)));
+            .any(|e| e.0
+                == Into::<u32>::into(match &got.lazy_extmark {
+                    LazyExtmark::Loaded(e) => e,
+                    _ => panic!(""),
+                })));
     }
 }

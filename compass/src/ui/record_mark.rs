@@ -1,6 +1,6 @@
 use super::{grid::GridLayout, highlights::RecordHighlightNames};
 use crate::{
-    common_types::{CursorPosition, Extmark},
+    common_types::{CursorRange, Extmark},
     config::{get_config, SignText},
     state::get_namespace,
     ui::highlights::{HintHighlightList, RecordHighlightList},
@@ -14,7 +14,7 @@ use nvim_oxi::api::{
     Buffer,
 };
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum RecordMarkTime {
     Past,
     Future,
@@ -62,20 +62,6 @@ impl From<RecordMarkTime> for &SignText {
             RecordMarkTime::FutureClose => &signs.close_future,
         }
     }
-}
-
-fn basic_builder(
-    builder: &mut SetExtmarkOptsBuilder,
-    line: usize,
-    col: usize,
-) -> &mut SetExtmarkOptsBuilder {
-    builder
-        .hl_mode(ExtmarkHlMode::Combine)
-        .end_row(line)
-        .end_col(col + 1)
-        .strict(false);
-
-    builder
 }
 
 /// Returns and accepts a 0,0 indexed position with column being end-inclusive
@@ -134,19 +120,12 @@ fn get_non_blank_pos(buf: Buffer, line: usize, col: usize) -> (usize, usize) {
 
 pub fn create_record_mark(
     mut buf: Buffer,
-    &CursorPosition { line, col }: &CursorPosition,
+    &CursorRange { line, col }: &CursorRange,
     time: RecordMarkTime,
 ) -> Result<Extmark> {
-    let sign_text: &SignText = time.into();
+    let (line, col) = get_non_blank_pos(buf.clone(), line, col);
 
-    let (line, col) = get_non_blank_pos(buf.clone(), line.saturating_sub(1), col);
-
-    let hl: RecordHighlightNames = time.into();
-    let set_opts = &basic_builder(&mut SetExtmarkOpts::builder(), line, col)
-        .hl_group(hl.mark)
-        .sign_hl_group(hl.sign)
-        .sign_text(sign_text)
-        .build();
+    let set_opts = &basic_mark_builder(&mut SetExtmarkOpts::builder(), line, col, time).build();
 
     buf.set_extmark(get_namespace().into(), line, col, set_opts)
         .map(|id| Extmark::new(id, (line, col).into()))
@@ -156,36 +135,44 @@ pub fn create_record_mark(
 pub fn update_record_mark(
     extmark: &Extmark,
     mut buf: Buffer,
-    &CursorPosition { line, col }: &CursorPosition,
+    &CursorRange { line, col }: &CursorRange,
     time: RecordMarkTime,
 ) -> Result<()> {
-    let sign_text: &SignText = time.into();
+    let (line, col) = get_non_blank_pos(buf.clone(), line, col);
 
-    let (line, col) = get_non_blank_pos(buf.clone(), line.saturating_sub(1), col);
+    let set_opts = &basic_mark_builder(&mut SetExtmarkOpts::builder(), line, col, time)
+        .id(Into::<u32>::into(extmark))
+        .build();
 
-    let set_opts = {
-        let mut builder = SetExtmarkOpts::builder();
-
-        let builder = builder.id(Into::<u32>::into(extmark));
-        let builder = basic_builder(builder, line, col);
-
-        let hl: RecordHighlightNames = time.into();
-        builder.hl_group(hl.mark);
-        builder.sign_hl_group(hl.sign);
-        builder.sign_text(sign_text);
-
-        builder.build()
-    };
-
-    buf.set_extmark(get_namespace().into(), line, col, &set_opts)
+    buf.set_extmark(get_namespace().into(), line, col, set_opts)
         .map(|_| ())
         .map_err(Into::into)
+}
+
+fn basic_mark_builder(
+    builder: &mut SetExtmarkOptsBuilder,
+    line: usize,
+    col: usize,
+    time: RecordMarkTime,
+) -> &mut SetExtmarkOptsBuilder {
+    let hl: RecordHighlightNames = time.into();
+    builder
+        .hl_mode(ExtmarkHlMode::Combine)
+        .hl_group(hl.mark)
+        .sign_hl_group(hl.sign)
+        .sign_text(Into::<&SignText>::into(time))
+        .end_row(line)
+        .end_col(col + 1)
+        .strict(false)
+        .undo_restore(false);
+
+    builder
 }
 
 // TODO: make hints scoped to a single window once the namespace API is stabilized
 pub fn create_hint_mark(
     mut buf: Buffer,
-    &CursorPosition { line, col }: &CursorPosition,
+    &CursorRange { line, col }: &CursorRange,
     name: &str,
     typ: GridLayout,
 ) -> Result<(Extmark, Option<Extmark>)> {
@@ -194,7 +181,7 @@ pub fn create_hint_mark(
     let label = {
         buf.set_extmark(
             get_namespace().into(),
-            line.saturating_sub(1),
+            line,
             col,
             &SetExtmarkOpts::builder()
                 .virt_text([(name, hl.mark)])
@@ -213,7 +200,7 @@ pub fn create_hint_mark(
             true => Some(
                 buf.set_extmark(
                     get_namespace().into(),
-                    line.saturating_sub(1),
+                    line,
                     0,
                     &SetExtmarkOpts::builder()
                         .virt_text([(

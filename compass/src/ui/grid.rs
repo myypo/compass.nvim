@@ -1,7 +1,6 @@
 use crate::{
-    common_types::{CursorPosition, Extmark},
-    config::JumpKeymap,
-    config::WindowGridSize,
+    common_types::{CursorRange, Extmark},
+    config::{JumpKeymap, WindowGridSize},
     state::{ChangeTypeRecord, Record, TypeRecord},
     ui::{record_mark::create_hint_mark, tab::open_tab},
     InputError, Result,
@@ -42,21 +41,20 @@ pub fn open_grid<'a>(
     let mut result: Vec<(Window, Buffer, (Extmark, Option<Extmark>))> =
         Vec::with_capacity(limit_win.into());
 
-    let conf_horiz = new_split_config(false);
-    let conf_vert = new_split_config(true);
+    let (conf_horiz, conf_vert) = new_split_config();
     let (first_len_half, second_len_half) = calc_halves(len_record, limit_win);
 
     let mut record_iter = slice_record.iter();
 
     let (mut hidden_win, hidden_buf, old_guicursor) = open_hidden_float()?;
     let mut create_hint =
-        |record: &Record, pos: &CursorPosition| -> Result<(Extmark, Option<Extmark>)> {
+        |record: &Record, ran: &CursorRange| -> Result<(Extmark, Option<Extmark>)> {
             let jump_keymap = jump_iter
                 .next()
                 .with_context(|| "no jump keymap to create a hint with")?;
 
             set_buffer_jump_keymap(hidden_buf.clone(), jump_keymap, record, &layout, limit_win)?;
-            create_hint_mark(record.buf.clone(), pos, jump_keymap.follow.as_str(), layout)
+            create_hint_mark(record.buf.clone(), ran, jump_keymap.follow.as_str(), layout)
         };
 
     for i in 0..first_len_half {
@@ -64,7 +62,7 @@ pub fn open_grid<'a>(
             .next()
             .with_context(|| "no next buffer to iterate over")?;
 
-        let pos = record.extmark.get_pos(record.buf.clone());
+        let pos = record.lazy_extmark.get_pos(record.buf.clone());
         let mut win = {
             if i == 0 {
                 let mut w = get_current_win();
@@ -77,7 +75,7 @@ pub fn open_grid<'a>(
         win.set_cursor(pos.line, pos.col)?;
         command("normal! zz")?;
 
-        let hint = create_hint(record, &pos)?;
+        let hint = create_hint(record, &Into::<CursorRange>::into(&pos))?;
 
         result.push((win, record.buf.clone(), hint));
     }
@@ -90,12 +88,12 @@ pub fn open_grid<'a>(
             win
         })?;
 
-        let pos = record.extmark.get_pos(record.buf.clone());
+        let pos = record.lazy_extmark.get_pos(record.buf.clone());
         let mut win = open_win(&record.buf, false, &conf_horiz)?;
         win.set_cursor(pos.line, pos.col)?;
         command("normal! zz")?;
 
-        let hint = create_hint(record, &pos)?;
+        let hint = create_hint(record, &Into::<CursorRange>::into(&pos))?;
 
         result.push((win, record.buf.clone(), hint));
     }
@@ -119,7 +117,7 @@ fn cleanup(
     )?;
 
     // TODO: will not close the tab if the hidden window is somehow closed by the user for example with :q
-    // all what I have tried so far causes nvim instance to freeze
+    // all what I have tried so far makes nvim instance freeze
     create_autocmd(
         ["BufLeave"],
         &CreateAutocmdOpts::builder()
@@ -259,10 +257,17 @@ fn set_buffer_jump_keymap(
     Ok(())
 }
 
-fn new_split_config(vertical: bool) -> WindowConfig {
-    WindowConfig::builder()
-        .noautocmd(true)
-        .focusable(false)
-        .vertical(vertical)
-        .build()
+fn new_split_config() -> (WindowConfig, WindowConfig) {
+    (
+        WindowConfig::builder()
+            .noautocmd(true)
+            .focusable(false)
+            .vertical(false)
+            .build(),
+        WindowConfig::builder()
+            .noautocmd(true)
+            .focusable(false)
+            .vertical(true)
+            .build(),
+    )
 }

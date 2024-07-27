@@ -16,10 +16,10 @@ use std::str::FromStr;
 
 use nvim_oxi::{
     api::{
-        create_user_command,
-        opts::{CreateCommandOpts, SetKeymapOpts},
+        create_user_command, notify,
+        opts::{CreateCommandOpts, NotifyOpts, SetKeymapOpts},
         set_keymap,
-        types::{CommandArgs, CommandComplete, CommandNArgs, Mode},
+        types::{CommandArgs, CommandComplete, CommandNArgs, LogLevel, Mode},
     },
     Dictionary, Function,
 };
@@ -70,17 +70,27 @@ fn user_commands(tracker: SyncTracker) -> Result<()> {
                 format!("provided unknown compass subcommand: {}", cargs.main_cmd).to_owned(),
             )
         })? {
-            CommandNames::Goto => Ok(goto(Some(cargs.try_into()?))?),
-            CommandNames::Pop => Ok(pop(Some(cargs.try_into()?))?),
-            CommandNames::Open => Ok(open(Some(cargs.try_into()?))?),
-            CommandNames::Place => Ok(place(Some(cargs.try_into()?))?),
-            CommandNames::Follow => Ok(follow(Some(cargs.try_into()?))?),
-        }
+            CommandNames::Goto => goto(Some(cargs.try_into()?))?,
+            CommandNames::Pop => pop(Some(cargs.try_into()?))?,
+            CommandNames::Open => open(Some(cargs.try_into()?))?,
+            CommandNames::Place => place(Some(cargs.try_into()?))?,
+            CommandNames::Follow => follow(Some(cargs.try_into()?))?,
+        };
+
+        Ok(())
     };
 
     create_user_command(
         "Compass",
-        Function::from_fn_mut(subcommands),
+        Function::from_fn_mut(move |ca| {
+            if let Err(e) = subcommands(ca) {
+                let _ = notify(
+                    &e.to_string(),
+                    LogLevel::Error,
+                    &NotifyOpts::builder().build(),
+                );
+            };
+        }),
         &CreateCommandOpts::builder()
             .nargs(CommandNArgs::OneOrMore)
             .complete(cmd_completion())
