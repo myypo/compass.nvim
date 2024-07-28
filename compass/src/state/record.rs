@@ -28,10 +28,24 @@ pub enum LazyExtmark {
 }
 
 impl LazyExtmark {
-    pub fn get_pos(&self, buf: Buffer) -> CursorPosition {
+    pub fn pos(&self, buf: Buffer) -> CursorPosition {
         match self {
-            Self::Loaded(e) => e.get_pos(buf),
+            Self::Loaded(e) => e.pos(buf),
             Self::Unloaded((p, _)) => p.clone(),
+        }
+    }
+
+    pub fn id(&self) -> Option<u32> {
+        match self {
+            Self::Loaded(e) => Some(e.id),
+            _ => None,
+        }
+    }
+
+    pub fn delete(&self, buf: Buffer) -> Result<()> {
+        match self {
+            Self::Loaded(e) => e.delete(buf),
+            Self::Unloaded(_) => Ok(()),
         }
     }
 }
@@ -119,7 +133,7 @@ impl Record {
         // Leave an entry in the jumplist
         command("normal! m'")?;
 
-        let CursorPosition { line, col } = self.get_or_init_extmark()?.get_pos(self.buf.clone());
+        let CursorPosition { line, col } = self.get_or_init_extmark()?.pos(self.buf.clone());
         win.set_cursor(line, col)?;
 
         Ok(())

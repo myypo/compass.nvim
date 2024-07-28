@@ -36,7 +36,7 @@ pub fn get_place(sync_tracker: SyncTracker) -> impl Fn(Option<PlaceOptions>) -> 
                                     },
                                 )| {
                                     buf_curr == *buf && {
-                                        lazy_extmark.get_pos(buf_curr.clone()).is_nearby(&pos_curr)
+                                        lazy_extmark.pos(buf_curr.clone()).is_nearby(&pos_curr)
                                     }
                                 },
                             )

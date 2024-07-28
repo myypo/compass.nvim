@@ -110,6 +110,44 @@ where
             }
         }
     }
+
+    pub fn remove(&mut self, i: usize) {
+        match self.pos {
+            Some(p) => match i {
+                _ if i + 1 == p => {
+                    if let Some(next_past) = self.ring.get_mut(i + 1) {
+                        next_past.as_close_past();
+                    };
+                }
+
+                _ if i == p => {
+                    let nfi = p.checked_sub(1);
+                    self.pos = nfi;
+
+                    if let Some(nfi) = p.checked_sub(1) {
+                        if let Some(next_fut) = self.ring.get_mut(nfi) {
+                            next_fut.as_close_future();
+                        };
+                    }
+                }
+
+                _ if i < p => {
+                    let nfi = p.checked_sub(1);
+                    self.pos = nfi;
+                }
+
+                _ => {}
+            },
+            None if i == 0 => {
+                if let Some(next_past) = self.ring.get_mut(i + 1) {
+                    next_past.as_close_past();
+                };
+            }
+            _ => {}
+        }
+
+        let _ = self.ring.remove(i);
+    }
 }
 
 impl<T> TrackList<T> {

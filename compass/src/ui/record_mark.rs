@@ -163,6 +163,7 @@ fn basic_mark_builder(
         .sign_text(Into::<&SignText>::into(time))
         .end_row(line)
         .end_col(col + 1)
+        .invalidate(false)
         .strict(false)
         .undo_restore(false);
 

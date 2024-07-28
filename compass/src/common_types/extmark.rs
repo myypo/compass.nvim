@@ -8,7 +8,7 @@ use super::CursorRange;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Extmark {
-    id: u32,
+    pub id: u32,
     init_pos: CursorPosition,
 }
 
@@ -23,7 +23,7 @@ impl Extmark {
         Self { id, init_pos }
     }
 
-    pub fn get_pos(&self, buf: Buffer) -> CursorPosition {
+    pub fn pos(&self, buf: Buffer) -> CursorPosition {
         let Ok(pos) = get_extmark_pos(self.id, buf) else {
             return self.init_pos.clone();
         };
@@ -37,7 +37,7 @@ impl Extmark {
     }
 
     pub fn get_range(&self, buf: Buffer) -> CursorRange {
-        Into::<CursorRange>::into(&self.get_pos(buf))
+        Into::<CursorRange>::into(&self.pos(buf))
     }
 
     pub fn delete(&self, mut buf: Buffer) -> Result<()> {

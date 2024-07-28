@@ -62,7 +62,7 @@ pub fn open_grid<'a>(
             .next()
             .with_context(|| "no next buffer to iterate over")?;
 
-        let pos = record.lazy_extmark.get_pos(record.buf.clone());
+        let pos = record.lazy_extmark.pos(record.buf.clone());
         let mut win = {
             if i == 0 {
                 let mut w = get_current_win();
@@ -88,7 +88,7 @@ pub fn open_grid<'a>(
             win
         })?;
 
-        let pos = record.lazy_extmark.get_pos(record.buf.clone());
+        let pos = record.lazy_extmark.pos(record.buf.clone());
         let mut win = open_win(&record.buf, false, &conf_horiz)?;
         win.set_cursor(pos.line, pos.col)?;
         command("normal! zz")?;

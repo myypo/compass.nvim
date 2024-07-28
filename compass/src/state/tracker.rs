@@ -1,4 +1,4 @@
-use super::{load_session, save_session, track_list::Mark, Session, Tick};
+use super::{get_namespace, load_session, save_session, track_list::Mark, Session, Tick};
 use crate::{
     common_types::CursorPosition,
     config::get_config,
@@ -15,8 +15,8 @@ use std::{
 use anyhow::anyhow;
 use nvim_oxi::api::{
     get_current_buf, get_current_win, get_mode, get_option_value,
-    opts::{OptionOpts, OptionScope},
-    types::{GotMode, Mode},
+    opts::{GetExtmarksOpts, OptionOpts, OptionScope},
+    types::{ExtmarkPosition, GotMode, Mode},
     Buffer,
 };
 
@@ -118,7 +118,7 @@ impl Tracker {
                     buf, lazy_extmark, ..
                 },
             )| {
-                buf_new == *buf && { lazy_extmark.get_pos(buf_new.clone()).is_nearby(&pos_new) }
+                buf_new == *buf && { lazy_extmark.pos(buf_new.clone()).is_nearby(&pos_new) }
             },
         ) {
             nearby_record.update(buf_new, tick_new, &pos_new, RecordMarkTime::PastClose)?;
@@ -130,6 +130,65 @@ impl Tracker {
         let record_new = Record::try_new(buf_new, tick_new, &pos_new)?;
 
         self.list.push(record_new);
+
+        Ok(())
+    }
+
+    /// Merges closely placed marks into a single one by removing the older ones.
+    /// HACK: Kinda necessary because of an existing race condition that might occur
+    /// on, let's say, a continious undo, where new adjacent marks will be created.
+    /// In a perfect world this should be optional.
+    fn merge(&mut self, buf: Buffer) -> Result<()> {
+        let mut list_idx: Vec<usize> = Vec::new();
+        for (io, ro) in self
+            .list
+            .iter_from_future()
+            .enumerate()
+            .filter(|(_, r)| r.buf == buf)
+        {
+            let p = ro.lazy_extmark.pos(buf.clone());
+
+            for (ii, ri) in self
+                .list
+                .iter_from_future()
+                .enumerate()
+                .skip(io + 1)
+                .filter(|(_, r)| r.buf == buf && r.lazy_extmark.pos(buf.clone()).is_nearby(&p))
+            {
+                let _ = ri.lazy_extmark.delete(buf.clone());
+
+                if let Some(ii) = ii.checked_sub(1) {
+                    list_idx.push(ii);
+                }
+            }
+        }
+
+        for i in list_idx {
+            self.list.remove(i);
+        }
+
+        Ok(())
+    }
+
+    /// HACK: In some cases extmarks created by the plugin become untracked
+    /// by our datastructures, so we have to delete them manually.
+    fn delete_leaked_extmarks(&self, mut buf: Buffer) -> Result<()> {
+        let ns_id: u32 = get_namespace().into();
+        for (id, _, _, _) in buf.clone().get_extmarks(
+            ns_id,
+            ExtmarkPosition::ByTuple((0, 0)),
+            // TODO: can't use the -1 sentinel since usize, oops
+            ExtmarkPosition::ByTuple((9999999999, 9999999999)),
+            &GetExtmarksOpts::builder().build(),
+        )? {
+            if !self
+                .list
+                .iter_from_future()
+                .any(|r| r.buf == buf && Some(id) == r.lazy_extmark.id())
+            {
+                let _ = buf.del_extmark(ns_id, id);
+            }
+        }
 
         Ok(())
     }
@@ -168,6 +227,17 @@ impl SyncTracker {
             })?;
             tracker.persist_state(path)?;
         };
+
+        Ok(())
+    }
+
+    pub fn maintain(&mut self) -> Result<()> {
+        let buf_curr = get_current_buf();
+
+        let mut tracker = self.lock()?;
+
+        tracker.merge(buf_curr.clone())?;
+        tracker.delete_leaked_extmarks(buf_curr)?;
 
         Ok(())
     }

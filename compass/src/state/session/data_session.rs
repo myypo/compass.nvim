@@ -44,7 +44,7 @@ impl TryFrom<&Record> for PersistentRecord {
             frecency,
         }: &Record,
     ) -> Result<Self> {
-        let cursor_pos = lazy_extmark.get_pos(buf.clone());
+        let cursor_pos = lazy_extmark.pos(buf.clone());
 
         Ok(Self {
             buf_handle: buf.handle(),
