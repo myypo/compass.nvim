@@ -14,7 +14,7 @@ use std::{
 
 use anyhow::anyhow;
 use nvim_oxi::api::{
-    get_current_buf, get_current_win, get_mode, get_option_value,
+    get_current_buf, get_current_win, get_mode, get_option_value, list_wins,
     opts::{GetExtmarksOpts, OptionOpts, OptionScope},
     types::{ExtmarkPosition, GotMode, Mode},
     Buffer,
@@ -42,6 +42,9 @@ impl Tracker {
         Ok(())
     }
 
+    /// Recreate the buffer's marks after opening it for the first time in restored session.
+    /// HACK: if we were to recreate extmarks on setup, their positions would have been broken
+    /// placing them all at the bottom of the file.
     pub fn renew_buf_record_marks(&mut self, curr_buf: Buffer) -> Result<()> {
         if self.renewed_bufs.iter().any(|b| b.clone() == curr_buf) {
             return Ok(());
@@ -121,13 +124,13 @@ impl Tracker {
                 buf_new == *buf && { lazy_extmark.pos(buf_new.clone()).is_nearby(&pos_new) }
             },
         ) {
-            nearby_record.update(buf_new, tick_new, &pos_new, RecordMarkTime::PastClose)?;
+            nearby_record.unload_update(buf_new, tick_new, pos_new, RecordMarkTime::PastClose)?;
 
             self.list.make_close_past(i);
             return Ok(());
         };
 
-        let record_new = Record::try_new(buf_new, tick_new, &pos_new)?;
+        let record_new = Record::try_new_unloaded(buf_new, tick_new, pos_new)?;
 
         self.list.push(record_new);
 
@@ -238,6 +241,20 @@ impl SyncTracker {
 
         tracker.merge(buf_curr.clone())?;
         tracker.delete_leaked_extmarks(buf_curr)?;
+
+        Ok(())
+    }
+
+    pub fn show(&mut self) -> Result<()> {
+        let mut curr_bufs = list_wins().filter_map(|w| w.get_buf().ok());
+
+        let list = &mut self.lock()?.list;
+        for r in list
+            .iter_mut_from_future()
+            .filter(|r| curr_bufs.any(|b| b == r.buf))
+        {
+            r.load_extmark()?;
+        }
 
         Ok(())
     }

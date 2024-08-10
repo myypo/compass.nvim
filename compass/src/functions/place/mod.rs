@@ -47,7 +47,7 @@ pub fn get_place(sync_tracker: SyncTracker) -> impl Fn(Option<PlaceOptions>) -> 
                         old_record.update(
                             buf_curr,
                             TypeRecord::Change(ChangeTypeRecord::Manual(old_record.typ.tick())),
-                            &pos_curr,
+                            pos_curr,
                             RecordMarkTime::PastClose,
                         )?;
                         tracker.list.make_close_past(i);

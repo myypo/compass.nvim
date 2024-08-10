@@ -62,7 +62,7 @@ where
                     // past -> close past
                     true => {
                         if let Some(old_close) = self.close_past_mut() {
-                            old_close.as_past()
+                            old_close.as_past();
                         };
 
                         self.ring.swap(idx, p);
@@ -160,6 +160,10 @@ impl<T> TrackList<T> {
 
     pub fn len(&self) -> usize {
         self.ring.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.ring.is_empty()
     }
 
     pub fn iter_from_future(&self) -> Iter<T> {

@@ -16,9 +16,11 @@ impl Worker {
         std::thread::spawn(move || -> Result<()> {
             let mut run_inst = Instant::now();
             let mut maint_inst = Instant::now();
+            let mut show_inst = Instant::now();
 
             let run_interv = Duration::from_millis(0);
             let maint_interv = Duration::from_millis(500);
+            let show_interv = Duration::from_millis(3000);
 
             loop {
                 let now = Instant::now();
@@ -35,6 +37,13 @@ impl Worker {
                         tracker.maintain()?;
                     };
                     maint_inst = now;
+                }
+
+                if now.duration_since(show_inst) >= show_interv {
+                    if let Some(tracker) = &mut self.tracker {
+                        tracker.show()?;
+                    };
+                    show_inst = now;
                 }
 
                 std::thread::sleep(Duration::from_millis(200));

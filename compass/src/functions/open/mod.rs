@@ -60,6 +60,8 @@ pub fn get_open(tracker: SyncTracker) -> impl Fn(Option<OpenOptions>) -> Result<
     }
 }
 
+/// HACK: we have to do the whole tab opening and buf setting part because otherwise
+/// the extmark positions will be broken if the extmarks were loaded from session management
 pub fn get_unique_bufs_priority(
     max_windows: WindowGridSize,
     track_list: &mut TrackList<Record>,

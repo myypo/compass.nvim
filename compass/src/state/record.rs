@@ -42,6 +42,10 @@ impl LazyExtmark {
         }
     }
 
+    pub fn loaded(&self) -> bool {
+        matches!(self, Self::Loaded(_))
+    }
+
     pub fn delete(&self, buf: Buffer) -> Result<()> {
         match self {
             Self::Loaded(e) => e.delete(buf),
@@ -100,6 +104,15 @@ impl Record {
         })
     }
 
+    pub fn try_new_unloaded(buf: Buffer, typ: TypeRecord, pos: CursorPosition) -> Result<Self> {
+        Ok(Self {
+            buf,
+            typ,
+            lazy_extmark: LazyExtmark::Unloaded((pos, RecordMarkTime::PastClose)),
+            frecency: Frecency::new(),
+        })
+    }
+
     pub fn get_or_init_extmark(&mut self) -> Result<Extmark> {
         Ok(match &self.lazy_extmark {
             LazyExtmark::Loaded(e) => e.clone(),
@@ -117,13 +130,35 @@ impl Record {
         &mut self,
         buf: Buffer,
         typ: TypeRecord,
-        pos: &CursorPosition,
-        hl: RecordMarkTime,
+        pos: CursorPosition,
+        time: RecordMarkTime,
     ) -> Result<()> {
-        update_record_mark(&self.get_or_init_extmark()?, buf.clone(), &pos.into(), hl)?;
+        match &self.lazy_extmark {
+            LazyExtmark::Loaded(e) => {
+                update_record_mark(e, buf.clone(), &Into::<CursorRange>::into(&pos), time)?
+            }
+            LazyExtmark::Unloaded(_) => self.lazy_extmark = LazyExtmark::Unloaded((pos, time)),
+        };
 
         self.typ = typ;
+        self.frecency.add_record(FrecencyType::Update);
 
+        Ok(())
+    }
+
+    pub fn unload_update(
+        &mut self,
+        buf: Buffer,
+        typ: TypeRecord,
+        pos: CursorPosition,
+        time: RecordMarkTime,
+    ) -> Result<()> {
+        if let LazyExtmark::Loaded(e) = &self.lazy_extmark {
+            e.delete(buf)?;
+        }
+
+        self.lazy_extmark = LazyExtmark::Unloaded((pos, time));
+        self.typ = typ;
         self.frecency.add_record(FrecencyType::Update);
 
         Ok(())
@@ -154,62 +189,31 @@ impl Record {
         Ok(())
     }
 
-    fn loaded_extmark(&self) -> Option<&Extmark> {
+    fn set_time(&mut self, time: RecordMarkTime) {
         match &self.lazy_extmark {
-            LazyExtmark::Loaded(e) => Some(e),
-            _ => None,
+            LazyExtmark::Loaded(e) => {
+                let _ =
+                    update_record_mark(e, self.buf.clone(), &e.get_range(self.buf.clone()), time);
+            }
+            LazyExtmark::Unloaded((p, _)) => {
+                self.lazy_extmark = LazyExtmark::Unloaded((p.clone(), time));
+            }
         }
     }
 }
 
 impl IndicateCloseness for Record {
     fn as_past(&mut self) {
-        let Some(ext) = self.loaded_extmark() else {
-            return;
-        };
-
-        let _ = update_record_mark(
-            ext,
-            self.buf.clone(),
-            &ext.get_range(self.buf.clone()),
-            RecordMarkTime::Past,
-        );
+        self.set_time(RecordMarkTime::Past);
     }
     fn as_future(&mut self) {
-        let Some(ext) = self.loaded_extmark() else {
-            return;
-        };
-
-        let _ = update_record_mark(
-            ext,
-            self.buf.clone(),
-            &ext.get_range(self.buf.clone()),
-            RecordMarkTime::Future,
-        );
+        self.set_time(RecordMarkTime::Future);
     }
     fn as_close_past(&mut self) {
-        let Some(ext) = self.loaded_extmark() else {
-            return;
-        };
-
-        let _ = update_record_mark(
-            ext,
-            self.buf.clone(),
-            &ext.get_range(self.buf.clone()),
-            RecordMarkTime::PastClose,
-        );
+        self.set_time(RecordMarkTime::PastClose);
     }
     fn as_close_future(&mut self) {
-        let Some(ext) = self.loaded_extmark() else {
-            return;
-        };
-
-        let _ = update_record_mark(
-            ext,
-            self.buf.clone(),
-            &ext.get_range(self.buf.clone()),
-            RecordMarkTime::FutureClose,
-        );
+        self.set_time(RecordMarkTime::FutureClose);
     }
 }
 
