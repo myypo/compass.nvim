@@ -10,17 +10,20 @@ use crate::{
     functions::open::get_unique_bufs_priority,
     state::{Record, SyncTracker, TrackList},
     ui::grid::{open_grid, GridLayout},
-    Result,
+    InputError, Result,
 };
 
 use anyhow::anyhow;
 use nvim_oxi::api::{get_current_win, set_current_buf, Buffer};
 
-pub fn get_follow(sync_tracker: SyncTracker) -> impl Fn(Option<FollowOptions>) -> Result<()> {
+pub fn get_follow(tracker: SyncTracker) -> impl Fn(Option<FollowOptions>) -> Result<()> {
     move |opts: Option<FollowOptions>| {
         let opts = opts.unwrap_or_default();
 
-        let mut tracker = sync_tracker.lock()?;
+        let list = &mut tracker.lock()?.list;
+        if list.is_empty() {
+            return Err(InputError::NoRecords("record list is empty".to_owned()))?;
+        }
 
         match opts {
             FollowOptions::Buf(BufOptions {
@@ -28,10 +31,7 @@ pub fn get_follow(sync_tracker: SyncTracker) -> impl Fn(Option<FollowOptions>) -
                 max_windows,
             }) => {
                 {
-                    let mut records_iter = tracker
-                        .list
-                        .iter_mut_from_future()
-                        .filter(|r| r.buf == target);
+                    let mut records_iter = list.iter_mut_from_future().filter(|r| r.buf == target);
 
                     if let Some(only) = records_iter.next() {
                         if records_iter.next().is_none() {
@@ -41,8 +41,7 @@ pub fn get_follow(sync_tracker: SyncTracker) -> impl Fn(Option<FollowOptions>) -
                     };
                 };
 
-                let (record_vec, jump_keymaps) =
-                    follow_buf(target, &mut tracker.list, max_windows)?;
+                let (record_vec, jump_keymaps) = follow_buf(target, list, max_windows)?;
 
                 open_grid(
                     &record_vec,

@@ -12,7 +12,7 @@ use crate::{
         grid::{open_grid, GridLayout},
         tab::{close_tab, open_tab},
     },
-    Result,
+    InputError, Result,
 };
 use std::collections::HashSet;
 
@@ -25,10 +25,13 @@ pub fn get_open(tracker: SyncTracker) -> impl Fn(Option<OpenOptions>) -> Result<
             max_windows,
         } = opts.unwrap_or_default();
 
-        let mut tracker = tracker.lock()?;
+        let list = &mut tracker.lock()?.list;
+        if list.is_empty() {
+            return Err(InputError::NoRecords("record list is empty".to_owned()))?;
+        }
 
         let record_list: Vec<&Record> = {
-            let iter = get_unique_bufs_priority(max_windows, &mut tracker.list)?.into_iter();
+            let iter = get_unique_bufs_priority(max_windows, list)?.into_iter();
             match record_types {
                 Some(record_types) => iter
                     .filter(|&r| record_types.iter().any(|&f| f == r.typ.into()))

@@ -3,7 +3,7 @@ use crate::{
     config::{JumpKeymap, WindowGridSize},
     state::{ChangeTypeRecord, Record, TypeRecord},
     ui::{record_mark::create_hint_mark, tab::open_tab},
-    InputError, Result,
+    Result,
 };
 
 use anyhow::Context;
@@ -32,9 +32,6 @@ pub fn open_grid<'a>(
     mut jump_iter: impl Iterator<Item = &'a JumpKeymap>,
 ) -> Result<()> {
     let len_record = slice_record.len();
-    if len_record == 0 {
-        Err(InputError::NoRecords("record list is empty".to_owned()))?
-    };
 
     open_tab()?;
 
