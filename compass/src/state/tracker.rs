@@ -246,12 +246,12 @@ impl SyncTracker {
     }
 
     pub fn show(&mut self) -> Result<()> {
-        let mut curr_bufs = list_wins().filter_map(|w| w.get_buf().ok());
+        let curr_bufs: Vec<Buffer> = list_wins().filter_map(|w| w.get_buf().ok()).collect();
 
         let list = &mut self.lock()?.list;
         for r in list
             .iter_mut_from_future()
-            .filter(|r| curr_bufs.any(|b| b == r.buf))
+            .filter(|r| curr_bufs.iter().any(|b| b == &r.buf))
         {
             r.load_extmark()?;
         }
