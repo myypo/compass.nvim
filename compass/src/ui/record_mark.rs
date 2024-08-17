@@ -1,9 +1,8 @@
-use super::{grid::GridLayout, highlights::RecordHighlightNames};
+use super::{grid::GridLayout, namespace::get_namespace};
 use crate::{
     common_types::{CursorRange, Extmark},
     config::{get_config, SignText},
-    state::get_namespace,
-    ui::highlights::{HintHighlightList, RecordHighlightList},
+    highlights::{HintHighlightList, RecordHighlightList, RecordHighlightNames},
     Error, Result,
 };
 use std::path::{Component, Path, PathBuf};

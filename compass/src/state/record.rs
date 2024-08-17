@@ -1,6 +1,6 @@
 use crate::{
     common_types::{CursorPosition, CursorRange, Extmark},
-    frecency::{Frecency, FrecencyScore, FrecencyType, FrecencyWeight},
+    state::frecency::{Frecency, FrecencyScore, FrecencyType, FrecencyWeight},
     state::track_list::IndicateCloseness,
     ui::record_mark::{create_record_mark, update_record_mark, RecordMarkTime},
     Result,
@@ -276,7 +276,7 @@ impl Mark for Record {
 mod tests {
     use core::panic;
 
-    use crate::state::get_namespace;
+    use crate::ui::namespace::get_namespace;
 
     use super::*;
 

@@ -1,4 +1,4 @@
-use super::{grid::GridLayout, record_mark::RecordMarkTime};
+use crate::ui::{grid::GridLayout, record_mark::RecordMarkTime};
 use crate::Result;
 
 use nvim_oxi::api::command;

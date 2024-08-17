@@ -1,6 +1,6 @@
 use std::collections::vec_deque::{Iter, IterMut, VecDeque};
 
-use crate::{frecency::FrecencyScore, Result};
+use crate::{state::frecency::FrecencyScore, Result};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TrackList<T> {

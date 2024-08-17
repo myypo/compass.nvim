@@ -1,7 +1,7 @@
 use crate::{
     config::{get_config, set_config, Config},
+    highlights::{apply_highlights, HighlightList},
     state::{SyncTracker, Worker},
-    ui::highlights::{apply_highlights, HighlightList},
     Result,
 };
 

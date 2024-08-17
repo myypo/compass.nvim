@@ -6,9 +6,8 @@ use opts::*;
 
 use crate::{
     config::{get_config, JumpKeymap, WindowGridSize},
-    frecency::FrecencyType,
     functions::open::get_unique_bufs_priority,
-    state::{Record, SyncTracker, TrackList},
+    state::{frecency::FrecencyType, Record, SyncTracker, TrackList},
     ui::grid::{open_grid, GridLayout},
     InputError, Result,
 };

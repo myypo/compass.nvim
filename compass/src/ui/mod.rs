@@ -4,4 +4,4 @@ pub mod tab;
 
 pub mod grid;
 
-pub mod highlights;
+pub mod namespace;

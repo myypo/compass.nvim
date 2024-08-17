@@ -1,6 +1,6 @@
 use std::hash::Hash;
 
-use crate::{common_types::CursorPosition, state::get_namespace, Result};
+use crate::{common_types::CursorPosition, ui::namespace::get_namespace, Result};
 
 use nvim_oxi::api::{opts::GetExtmarkByIdOpts, Buffer};
 

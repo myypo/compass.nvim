@@ -1,5 +1,5 @@
 use crate::{
-    common_types::Timestamp, frecency::FrecencyType, state::Tick, viml::CompassArgs, Error,
+    common_types::Timestamp, state::frecency::FrecencyType, state::Tick, viml::CompassArgs, Error,
     InputError, Result,
 };
 use macros::FromLua;

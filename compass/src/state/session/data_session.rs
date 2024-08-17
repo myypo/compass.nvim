@@ -1,6 +1,6 @@
 use crate::{
     common_types::CursorPosition,
-    frecency::Frecency,
+    state::frecency::Frecency,
     state::{record::LazyExtmark, Record, TrackList, TypeRecord},
     ui::record_mark::recreate_mark_time,
     Error, Result,

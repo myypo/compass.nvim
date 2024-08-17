@@ -1,6 +1,6 @@
-use crate::frecency::FrecencyWeight;
-
 use serde::Deserialize;
+
+use crate::state::frecency::FrecencyWeight;
 
 #[derive(Default, Debug, Deserialize)]
 pub struct FrecencyConfig {

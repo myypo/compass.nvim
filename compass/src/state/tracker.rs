@@ -1,11 +1,9 @@
-use super::{
-    get_namespace, load_session, record::LazyExtmark, save_session, track_list::Mark, Session, Tick,
-};
+use super::{load_session, record::LazyExtmark, save_session, track_list::Mark, Session, Tick};
 use crate::{
     common_types::CursorPosition,
     config::get_config,
     state::{ChangeTypeRecord, Record, TrackList, TypeRecord},
-    ui::record_mark::RecordMarkTime,
+    ui::{namespace::get_namespace, record_mark::RecordMarkTime},
     Result,
 };
 use std::{
