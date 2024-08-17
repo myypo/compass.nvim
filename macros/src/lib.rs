@@ -14,6 +14,7 @@ pub fn derive_deserializing_from_lua(input: TokenStream) -> TokenStream {
 
         impl nvim_oxi::conversion::FromObject for #ident {
             fn from_object(obj: nvim_oxi::Object) -> core::result::Result<Self, nvim_oxi::conversion::Error> {
+                use serde::Deserialize;
                 Self::deserialize(nvim_oxi::serde::Deserializer::new(obj)).map_err(Into::into)
             }
         }

@@ -1,10 +1,15 @@
-use crate::Result;
-use std::time::{Duration, Instant};
+use crate::{config::get_config, Result};
+use std::time::Instant;
 
 use super::SyncTracker;
 
 pub struct Worker {
     pub tracker: Option<SyncTracker>,
+}
+
+macro_rules! min {
+    ($x: expr) => ($x);
+    ($x: expr, $($z: expr),+) => (::std::cmp::min($x, min!($($z),*)));
 }
 
 impl Worker {
@@ -14,39 +19,34 @@ impl Worker {
 
     pub fn run_jobs(mut self) -> Result<()> {
         std::thread::spawn(move || -> Result<()> {
+            let debounce = &get_config().tracker.debounce_milliseconds;
+            let min_deb = min!(debounce.run, debounce.maintenance, debounce.show);
+
             let mut run_inst = Instant::now();
             let mut maint_inst = Instant::now();
-            let mut show_inst = Instant::now();
-
-            let run_interv = Duration::from_millis(0);
-            let maint_interv = Duration::from_millis(500);
-            let show_interv = Duration::from_millis(3000);
 
             loop {
                 let now = Instant::now();
 
-                if now.duration_since(run_inst) >= run_interv {
+                if now.duration_since(run_inst) >= debounce.run {
                     if let Some(tracker) = &mut self.tracker {
                         tracker.run()?;
                     };
                     run_inst = now;
                 }
 
-                if now.duration_since(maint_inst) >= maint_interv {
+                if now.duration_since(maint_inst) >= debounce.maintenance {
                     if let Some(tracker) = &mut self.tracker {
                         tracker.maintain()?;
                     };
                     maint_inst = now;
                 }
 
-                if now.duration_since(show_inst) >= show_interv {
-                    if let Some(tracker) = &mut self.tracker {
-                        tracker.show()?;
-                    };
-                    show_inst = now;
-                }
+                if let Some(tracker) = &mut self.tracker {
+                    tracker.show()?;
+                };
 
-                std::thread::sleep(Duration::from_millis(200));
+                std::thread::sleep(min_deb);
             }
         });
 

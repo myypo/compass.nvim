@@ -5,7 +5,7 @@ use crate::{
     ui::record_mark::{create_record_mark, update_record_mark, RecordMarkTime},
     Result,
 };
-use std::fmt::Display;
+use std::{fmt::Display, time::Instant};
 
 use bitcode::{Decode, Encode};
 use nvim_oxi::api::{command, set_current_buf, Buffer, Window};
@@ -25,6 +25,7 @@ pub struct Record {
 pub enum LazyExtmark {
     Loaded(Extmark),
     Unloaded((CursorPosition, RecordMarkTime)),
+    Hidden((CursorPosition, RecordMarkTime, Instant)),
 }
 
 impl LazyExtmark {
@@ -32,6 +33,7 @@ impl LazyExtmark {
         match self {
             Self::Loaded(e) => e.pos(buf),
             Self::Unloaded((p, _)) => p.clone(),
+            Self::Hidden((p, _, _)) => p.clone(),
         }
     }
 
@@ -50,6 +52,7 @@ impl LazyExtmark {
         match self {
             Self::Loaded(e) => e.delete(buf),
             Self::Unloaded(_) => Ok(()),
+            Self::Hidden(_) => Ok(()),
         }
     }
 }
@@ -104,11 +107,11 @@ impl Record {
         })
     }
 
-    pub fn try_new_unloaded(buf: Buffer, typ: TypeRecord, pos: CursorPosition) -> Result<Self> {
+    pub fn try_new_hidden(buf: Buffer, typ: TypeRecord, pos: CursorPosition) -> Result<Self> {
         Ok(Self {
             buf,
             typ,
-            lazy_extmark: LazyExtmark::Unloaded((pos, RecordMarkTime::PastClose)),
+            lazy_extmark: LazyExtmark::Hidden((pos, RecordMarkTime::PastClose, Instant::now())),
             frecency: Frecency::new(),
         })
     }
@@ -117,6 +120,13 @@ impl Record {
         Ok(match &self.lazy_extmark {
             LazyExtmark::Loaded(e) => e.clone(),
             LazyExtmark::Unloaded((p, t)) => {
+                let extmark =
+                    create_record_mark(self.buf.clone(), &Into::<CursorRange>::into(p), *t)?;
+                self.lazy_extmark = LazyExtmark::Loaded(extmark.clone());
+
+                extmark
+            }
+            LazyExtmark::Hidden((p, t, _)) => {
                 let extmark =
                     create_record_mark(self.buf.clone(), &Into::<CursorRange>::into(p), *t)?;
                 self.lazy_extmark = LazyExtmark::Loaded(extmark.clone());
@@ -137,7 +147,16 @@ impl Record {
             LazyExtmark::Loaded(e) => {
                 update_record_mark(e, buf.clone(), &Into::<CursorRange>::into(&pos), time)?
             }
-            LazyExtmark::Unloaded(_) => self.lazy_extmark = LazyExtmark::Unloaded((pos, time)),
+            LazyExtmark::Unloaded(_) => {
+                let extmark =
+                    create_record_mark(self.buf.clone(), &Into::<CursorRange>::into(&pos), time)?;
+                self.lazy_extmark = LazyExtmark::Loaded(extmark.clone());
+            }
+            LazyExtmark::Hidden(_) => {
+                let extmark =
+                    create_record_mark(self.buf.clone(), &Into::<CursorRange>::into(&pos), time)?;
+                self.lazy_extmark = LazyExtmark::Loaded(extmark.clone());
+            }
         };
 
         self.typ = typ;
@@ -146,7 +165,7 @@ impl Record {
         Ok(())
     }
 
-    pub fn unload_update(
+    pub fn hide_update(
         &mut self,
         buf: Buffer,
         typ: TypeRecord,
@@ -157,7 +176,7 @@ impl Record {
             e.delete(buf)?;
         }
 
-        self.lazy_extmark = LazyExtmark::Unloaded((pos, time));
+        self.lazy_extmark = LazyExtmark::Hidden((pos, time, Instant::now()));
         self.typ = typ;
         self.frecency.add_record(FrecencyType::Update);
 
@@ -198,6 +217,9 @@ impl Record {
             LazyExtmark::Unloaded((p, _)) => {
                 self.lazy_extmark = LazyExtmark::Unloaded((p.clone(), time));
             }
+            LazyExtmark::Hidden((p, _, i)) => {
+                self.lazy_extmark = LazyExtmark::Hidden((p.clone(), time, *i));
+            }
         }
     }
 }
@@ -233,8 +255,15 @@ impl Mark for Record {
 
                 Ok(())
             }
+            LazyExtmark::Hidden((p, t, _)) => {
+                let extmark =
+                    create_record_mark(self.buf.clone(), &Into::<CursorRange>::into(p), *t)?;
+                self.lazy_extmark = LazyExtmark::Loaded(extmark.clone());
 
-            _ => Ok(()),
+                Ok(())
+            }
+
+            LazyExtmark::Loaded(_) => Ok(()),
         }
     }
 

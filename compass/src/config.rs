@@ -16,10 +16,6 @@ pub use persistence::*;
 pub mod tracker;
 pub use tracker::*;
 
-use serde::Deserialize;
-
-use macros::FromLua;
-
 static CONFIG: std::sync::OnceLock<Config> = std::sync::OnceLock::new();
 pub fn get_config() -> &'static Config {
     CONFIG.get_or_init(Config::default)
@@ -29,7 +25,7 @@ pub fn set_config(conf: Config) {
     let _ = CONFIG.set(conf);
 }
 
-#[derive(Debug, Deserialize, Default, FromLua)]
+#[derive(Debug, serde::Deserialize, Default, macros::FromLua)]
 #[serde(default)]
 pub struct Config {
     pub picker: PickerConfig,

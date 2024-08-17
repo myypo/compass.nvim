@@ -123,6 +123,13 @@ Default configuration:
     -- Customization of the tracker automatically placing plugin marks on file edits etc.
     tracker = {
         enable = true,
+        -- How often to perform background actions specified in milliseconds
+        -- Might end up waiting for longer than the provided value
+        debounce_milliseconds = {
+            run = 200, -- Change checking interval
+            maintenance = 500, -- Consistency enforcing interval
+            show = 3000, -- How long to wait before visualizing a freshly placed mark
+        },
     },
 
     -- Plugin state persistence options
@@ -133,6 +140,7 @@ Default configuration:
 
     -- Weights and options for the frecency algorithm
     -- When appropriate tries to prioritize showing most used and most recently used plugin marks, for example, in a picker UI
+    -- NOTE: the default numbers are pretty random and I am not sure how to proceed with the feature overall
     frecency = {
         time_bucket = {
             -- This table can be of any length
@@ -141,7 +149,7 @@ Default configuration:
                 { hours = 14, weight = 70 },
                 { hours = 31, weight = 50 },
                 { hours = 90, weight = 30 },
-		    }
+		    },
             fallback = 10, -- Default weight when a value is older than the biggest `hours` in `thresholds`
         },
         -- Weights for different types of interaction with the mark
