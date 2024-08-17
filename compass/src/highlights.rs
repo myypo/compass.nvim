@@ -67,21 +67,29 @@ impl<'a> Default for RecordHighlightList<'a> {
     fn default() -> Self {
         Self {
             past: RecordHighlight {
-                mark: OptsHighlight::builder().bg("grey").gui("bold").build(),
-                sign: OptsHighlight::builder().fg("grey").gui("bold").build(),
+                mark: OptsHighlight::builder().build(),
+                sign: OptsHighlight::builder().fg("#303030").gui("bold").build(),
             },
             close_past: RecordHighlight {
-                mark: OptsHighlight::builder().fg("red").gui("bold").build(),
-                sign: OptsHighlight::builder().fg("red").gui("bold").build(),
+                mark: OptsHighlight::builder()
+                    .fg("DarkRed")
+                    .bg("#303030")
+                    .gui("bold")
+                    .build(),
+                sign: OptsHighlight::builder().fg("DarkRed").gui("bold").build(),
             },
 
             future: RecordHighlight {
-                mark: OptsHighlight::builder().bg("grey").gui("bold").build(),
-                sign: OptsHighlight::builder().fg("grey").gui("bold").build(),
+                mark: OptsHighlight::builder().build(),
+                sign: OptsHighlight::builder().fg("#303030").gui("bold").build(),
             },
             close_future: RecordHighlight {
-                mark: OptsHighlight::builder().fg("blue").gui("bold").build(),
-                sign: OptsHighlight::builder().fg("blue").gui("bold").build(),
+                mark: OptsHighlight::builder()
+                    .fg("DarkCyan")
+                    .bg("#303030")
+                    .gui("bold")
+                    .build(),
+                sign: OptsHighlight::builder().fg("DarkCyan").gui("bold").build(),
             },
         }
     }
@@ -129,20 +137,26 @@ impl<'a> Default for HintHighlightList<'a> {
             open: HintHighlight {
                 label: OptsHighlight::builder()
                     .fg("black")
-                    .bg("yellow")
+                    .bg("DarkYellow")
                     .gui("bold")
                     .build(),
 
-                path: OptsHighlight::builder().fg("yellow").gui("bold").build(),
+                path: OptsHighlight::builder()
+                    .fg("DarkYellow")
+                    .gui("bold")
+                    .build(),
             },
             follow: HintHighlight {
                 label: OptsHighlight::builder()
                     .fg("black")
-                    .bg("yellow")
+                    .bg("DarkYellow")
                     .gui("bold")
                     .build(),
 
-                path: OptsHighlight::builder().fg("yellow").gui("bold").build(),
+                path: OptsHighlight::builder()
+                    .fg("DarkYellow")
+                    .gui("bold")
+                    .build(),
             },
         }
     }

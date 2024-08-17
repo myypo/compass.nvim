@@ -182,7 +182,7 @@ The plugin defines highlights that can be overwritten by colorschemes or manuall
 <td>
 
 ```
-guibg=grey gui=bold
+NONE
 ```
 
 </td>
@@ -192,7 +192,7 @@ guibg=grey gui=bold
 <td>
 
 ```
-guibg=grey gui=bold
+guibg=#303030 gui=bold
 ```
 
 </td>
@@ -202,7 +202,7 @@ guibg=grey gui=bold
 <td>
 
 ```
-guifg=red gui=bold
+guifg=DarkRed guibg=#303030 gui=bold
 ```
 
 </td>
@@ -212,7 +212,7 @@ guifg=red gui=bold
 <td>
 
 ```
-guifg=red gui=bold
+guifg=DarkRed gui=bold
 ```
 
 </td>
@@ -232,7 +232,7 @@ guifg=red gui=bold
 <td>
 
 ```
-guibg=grey gui=bold
+NONE
 ```
 
 </td>
@@ -242,7 +242,7 @@ guibg=grey gui=bold
 <td>
 
 ```
-guibg=grey gui=bold
+guibg=#303030 gui=bold
 ```
 
 </td>
@@ -252,7 +252,7 @@ guibg=grey gui=bold
 <td>
 
 ```
-guifg=blue gui=bold
+guifg=DarkCyan guibg=#303030 gui=bold
 ```
 
 </td>
@@ -262,7 +262,7 @@ guifg=blue gui=bold
 <td>
 
 ```
-guifg=blue gui=bold
+guifg=DarkCyan gui=bold
 ```
 
 </td>
@@ -282,7 +282,7 @@ guifg=blue gui=bold
 <td>
 
 ```
-guifg=black guibg=yellow gui=bold
+guifg=black guibg=DarkYellow gui=bold
 ```
 
 </td>
@@ -292,7 +292,7 @@ guifg=black guibg=yellow gui=bold
 <td>
 
 ```
-guifg=black gui=bold
+guifg=DarkYellow gui=bold
 ```
 
 </td>
@@ -302,7 +302,7 @@ guifg=black gui=bold
 <td>
 
 ```
-guifg=black guibg=yellow gui=bold
+guifg=black guibg=DarkYellow gui=bold
 ```
 
 </td>
@@ -312,7 +312,7 @@ guifg=black guibg=yellow gui=bold
 <td>
 
 ```
-guifg=black gui=bold
+guifg=DarkYellow gui=bold
 ```
 
 </td>
