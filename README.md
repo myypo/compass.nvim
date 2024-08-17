@@ -112,11 +112,12 @@ Default configuration:
         },
 
         -- Which signs to use for different mark types relatively to the current position
+        -- You can find more Unicode options online, and, if using a patched nerdfont, here: https://www.nerdfonts.com/cheat-sheet
         signs = {
-            past = "●",
-            close_past = "●",
-            future = "●",
-            close_future = "●",
+            past = "◀",
+            close_past = "◀",
+            future = "▶",
+            close_future = "▶",
         },
     },
 
