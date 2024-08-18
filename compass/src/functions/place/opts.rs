@@ -15,14 +15,7 @@ impl Default for PlaceOptions {
 }
 
 #[derive(Default, Deserialize)]
-pub struct ChangeOptions {
-    #[serde(default = "default_try_update")]
-    pub try_update: bool,
-}
-
-fn default_try_update() -> bool {
-    true
-}
+pub struct ChangeOptions {}
 
 impl<'a> TryFrom<CompassArgs<'a>> for PlaceOptions {
     type Error = Error;
@@ -35,17 +28,7 @@ impl<'a> TryFrom<CompassArgs<'a>> for PlaceOptions {
         };
 
         match sub {
-            "change" => {
-                let try_update = value
-                    .map_args
-                    .get("try_update")
-                    .map(|&s| s.parse::<bool>())
-                    .transpose()
-                    .map_err(InputError::Bool)?
-                    .unwrap_or_else(default_try_update);
-
-                Ok(Self::Change(ChangeOptions { try_update }))
-            }
+            "change" => Ok(Self::Change(ChangeOptions {})),
 
             sub => Err(InputError::FunctionArguments(format!(
                 "unknown `place` subcommand provided: {}",

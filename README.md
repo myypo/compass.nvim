@@ -54,8 +54,6 @@ keys = {
 
     -- Manually place a change mark that works the same way as automatically put ones
     { "<C-m>",   "<Cmd>Compass place change<CR>" },
-    -- Same as above but always creates a new mark instead of trying to update a nearby one
-    { "<C-S-m>", "<Cmd>Compass place change try_update=false<CR>" },
 },
 
 ```
