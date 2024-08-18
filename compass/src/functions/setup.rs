@@ -27,7 +27,7 @@ pub fn get_setup(mut tracker: SyncTracker) -> impl FnOnce(Option<Config>) -> Res
         apply_highlights(HighlightList::default())?;
 
         let worker = Worker::new(conf.tracker.enable.then_some(tracker));
-        worker.run_jobs()?;
+        worker.run_jobs();
 
         Ok(())
     }

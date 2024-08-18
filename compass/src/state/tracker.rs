@@ -174,7 +174,7 @@ impl Tracker {
                 .skip(io + 1)
                 .filter(|(_, r)| r.buf == buf && r.lazy_extmark.pos(buf.clone()).is_nearby(&p))
             {
-                let _ = ri.lazy_extmark.delete(buf.clone());
+                ri.lazy_extmark.delete(buf.clone())?;
 
                 if let Some(ii) = ii.checked_sub(1) {
                     list_idx.push(ii);
@@ -205,7 +205,7 @@ impl Tracker {
                 .iter_from_future()
                 .any(|r| r.buf == buf && Some(id) == r.lazy_extmark.id())
             {
-                let _ = buf.del_extmark(ns_id, id);
+                buf.del_extmark(ns_id, id)?;
             }
         }
 

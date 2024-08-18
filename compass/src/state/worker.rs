@@ -1,3 +1,5 @@
+use nvim_oxi::api::{notify, opts::NotifyOpts, types::LogLevel};
+
 use crate::{config::get_config, Result};
 use std::time::Instant;
 
@@ -17,15 +19,15 @@ impl Worker {
         Self { tracker }
     }
 
-    pub fn run_jobs(mut self) -> Result<()> {
-        std::thread::spawn(move || -> Result<()> {
+    pub fn run_jobs(mut self) {
+        std::thread::spawn(move || {
             let debounce = &get_config().tracker.debounce_milliseconds;
             let min_deb = min!(debounce.run, debounce.maintenance, debounce.show);
 
             let mut run_inst = Instant::now();
             let mut maint_inst = Instant::now();
 
-            loop {
+            let mut jobs = || -> Result<()> {
                 let now = Instant::now();
 
                 if now.duration_since(run_inst) >= debounce.run {
@@ -46,10 +48,20 @@ impl Worker {
                     tracker.show()?;
                 };
 
+                Ok(())
+            };
+
+            loop {
+                if let Err(e) = jobs() {
+                    let _ = notify(
+                        &e.to_string(),
+                        LogLevel::Error,
+                        &NotifyOpts::builder().build(),
+                    );
+                };
+
                 std::thread::sleep(min_deb);
             }
         });
-
-        Ok(())
     }
 }
