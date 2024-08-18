@@ -44,10 +44,6 @@ impl LazyExtmark {
         }
     }
 
-    pub fn loaded(&self) -> bool {
-        matches!(self, Self::Loaded(_))
-    }
-
     pub fn delete(&self, buf: Buffer) -> Result<()> {
         match self {
             Self::Loaded(e) => e.delete(buf),

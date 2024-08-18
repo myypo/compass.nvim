@@ -33,13 +33,6 @@ where
         }
     }
 
-    pub fn close_future_mut(&mut self) -> Option<&mut T> {
-        match self.pos {
-            Some(p) => self.get_mut(p),
-            None => None,
-        }
-    }
-
     pub fn make_close_past(&mut self, idx: usize) -> Option<()> {
         if let Some(p) = self.pos {
             if p + 1 == idx {
@@ -186,10 +179,6 @@ impl<T> TrackList<T> {
         p + 1 < self.ring.len()
     }
 
-    pub fn get(&self, i: usize) -> Option<&T> {
-        self.ring.get(i)
-    }
-
     pub fn get_mut(&mut self, i: usize) -> Option<&mut T> {
         self.ring.get_mut(i)
     }
@@ -317,12 +306,6 @@ where
         vec.sort_by_key(|v| v.total_score());
         vec
     }
-
-    pub fn frecency_mut(&mut self) -> Vec<&mut T> {
-        let mut vec: Vec<&mut T> = self.ring.iter_mut().collect();
-        vec.sort_by_key(|v| v.total_score());
-        vec
-    }
 }
 
 pub trait IndicateCloseness {
@@ -404,7 +387,7 @@ mod tests {
         assert_eq!(list.step_past().unwrap(), &1.into());
 
         assert!(list.step_past().is_none());
-        assert_eq!(list.get(list.pos.unwrap()).unwrap(), &1.into());
+        assert_eq!(list.get_mut(list.pos.unwrap()).unwrap(), &1.into());
         assert!(list.step_past().is_none());
         assert_eq!(list.step_future().unwrap(), &1.into());
         assert_eq!(list.step_future().unwrap(), &2.into());
