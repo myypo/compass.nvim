@@ -129,6 +129,10 @@ Default configuration:
             maintenance = 500, -- Consistency enforcing interval
             show = 3000, -- How long to wait before visualizing a freshly placed mark
         },
+        -- Files matching the following glob patterns will never be tracked
+        ignored_patterns = {
+			"**/.git/**",
+        },
     },
 
     -- Plugin state persistence options

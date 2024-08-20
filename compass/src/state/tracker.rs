@@ -71,6 +71,11 @@ impl Tracker {
             return Ok(());
         };
 
+        let conf = get_config();
+        if conf.tracker.ignored_patterns.is_match(buf_new.get_name()?) {
+            return Ok(());
+        }
+
         let modified: bool = get_option_value(
             "modified",
             &OptionOpts::builder().scope(OptionScope::Local).build(),

@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use globset::{Glob, GlobSet};
 use serde::{Deserialize, Deserializer};
 
 #[derive(Debug, Deserialize)]
@@ -9,10 +10,20 @@ pub struct TrackerConfig {
 
     #[serde(default)]
     pub debounce_milliseconds: Debounce,
+
+    #[serde(default = "default_ignored_patterns")]
+    pub ignored_patterns: GlobSet,
 }
 
 fn default_enable() -> bool {
     true
+}
+
+fn default_ignored_patterns() -> GlobSet {
+    GlobSet::builder()
+        .add(Glob::new("**/.git/**").unwrap())
+        .build()
+        .unwrap()
 }
 
 fn duration_from_millis<'de, D>(deserializer: D) -> Result<Duration, D::Error>
@@ -48,6 +59,7 @@ impl Default for TrackerConfig {
         Self {
             enable: default_enable(),
             debounce_milliseconds: Debounce::default(),
+            ignored_patterns: default_ignored_patterns(),
         }
     }
 }
