@@ -1,4 +1,4 @@
-*compass.nvim.txt*       For Neovim >= 0.8.0       Last change: 2024 August 18
+*compass.nvim.txt*       For Neovim >= 0.8.0       Last change: 2024 August 20
 
 ==============================================================================
 Table of Contents                             *compass.nvim-table-of-contents*
@@ -139,6 +139,10 @@ Default configuration:
                 run = 200, -- Change checking interval
                 maintenance = 500, -- Consistency enforcing interval
                 show = 3000, -- How long to wait before visualizing a freshly placed mark
+            },
+            -- Files matching the following glob patterns will never be tracked
+            ignored_patterns = {
+                "**/.git/**",
             },
         },
     
