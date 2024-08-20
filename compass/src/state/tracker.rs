@@ -142,22 +142,6 @@ impl Tracker {
         Ok(())
     }
 
-    fn remove_invalid_bufs(&mut self) -> Result<()> {
-        let mut list_idx: Vec<usize> = Vec::new();
-        for (i, r) in self.list.iter_from_future().enumerate() {
-            if !r.buf.is_valid() {
-                r.lazy_extmark.delete(r.buf.clone())?;
-                list_idx.push(i);
-            }
-        }
-
-        for (i, j) in list_idx.into_iter().enumerate() {
-            self.list.remove(i - j);
-        }
-
-        Ok(())
-    }
-
     /// Merges closely placed marks into a single one by removing the older ones.
     /// HACK: Kinda necessary because of an existing race condition that might occur
     /// on, let's say, a continious undo, where new adjacent marks will be created.
@@ -260,7 +244,6 @@ impl SyncTracker {
 
         let mut tracker = self.lock()?;
 
-        tracker.remove_invalid_bufs()?;
         tracker.merge(buf_curr.clone())?;
         tracker.delete_leaked_extmarks(buf_curr)?;
 
