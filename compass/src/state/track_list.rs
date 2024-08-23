@@ -22,125 +22,8 @@ pub trait Mark {
     fn open_buf(&self) -> Result<()>;
 }
 
-impl<T> TrackList<T>
-where
-    T: Mark + IndicateCloseness,
-{
-    pub fn close_past_mut(&mut self) -> Option<&mut T> {
-        match self.pos {
-            Some(p) => self.get_mut(p + 1),
-            None => self.get_mut(0),
-        }
-    }
-
-    pub fn make_close_past(&mut self, idx: usize) -> Option<()> {
-        if let Some(p) = self.pos {
-            if p + 1 == idx {
-                return Some(());
-            }
-        }
-
-        let val = self.ring.get_mut(idx)?;
-        val.as_close_past();
-
-        let len = self.len();
-        if len == 1 {
-            self.pos = None;
-            return Some(());
-        }
-
-        match self.pos {
-            Some(p) => {
-                match idx.ge(&p) {
-                    // past -> close past
-                    true => {
-                        if let Some(old_close) = self.close_past_mut() {
-                            old_close.as_past();
-                        };
-
-                        self.ring.swap(idx, p);
-
-                        if p + 1 < idx {
-                            self.ring.make_contiguous()[p..=idx].rotate_right(1);
-                        } else {
-                            self.pos = p.checked_sub(1);
-                        }
-
-                        Some(())
-                    }
-
-                    // future -> close past
-                    false => {
-                        match p.checked_sub(1) {
-                            Some(new_pos) => {
-                                if p == idx {
-                                    if let Some(close_new) = self.ring.get_mut(new_pos) {
-                                        close_new.as_close_future();
-                                    };
-                                }
-
-                                self.pos = Some(new_pos);
-                                self.ring.swap(idx, p);
-                                self.ring.make_contiguous()[idx..=new_pos].rotate_right(1);
-                            }
-                            None => {
-                                self.pos = None;
-                            }
-                        }
-
-                        Some(())
-                    }
-                }
-            }
-            None => {
-                if idx != 0 {
-                    self.ring.front_mut()?.as_past();
-                }
-
-                self.ring.make_contiguous()[0..=idx].rotate_right(1);
-
-                Some(())
-            }
-        }
-    }
-
-    pub fn remove(&mut self, i: usize) {
-        match self.pos {
-            Some(p) => match i {
-                _ if i + 1 == p => {
-                    if let Some(next_past) = self.ring.get_mut(i + 1) {
-                        next_past.as_close_past();
-                    };
-                }
-
-                _ if i == p => {
-                    let nfi = p.checked_sub(1);
-                    self.pos = nfi;
-
-                    if let Some(nfi) = p.checked_sub(1) {
-                        if let Some(next_fut) = self.ring.get_mut(nfi) {
-                            next_fut.as_close_future();
-                        };
-                    }
-                }
-
-                _ if i < p => {
-                    let nfi = p.checked_sub(1);
-                    self.pos = nfi;
-                }
-
-                _ => {}
-            },
-            None if i == 0 => {
-                if let Some(next_past) = self.ring.get_mut(i + 1) {
-                    next_past.as_close_past();
-                };
-            }
-            _ => {}
-        }
-
-        let _ = self.ring.remove(i);
-    }
+pub trait Active {
+    fn is_active(&self) -> bool;
 }
 
 impl<T> TrackList<T> {
@@ -167,18 +50,6 @@ impl<T> TrackList<T> {
         self.ring.iter_mut()
     }
 
-    fn past_exists(&self) -> bool {
-        if self.ring.is_empty() {
-            return false;
-        }
-
-        let Some(p) = self.pos else {
-            return true;
-        };
-
-        p + 1 < self.ring.len()
-    }
-
     pub fn get_mut(&mut self, i: usize) -> Option<&mut T> {
         self.ring.get_mut(i)
     }
@@ -191,8 +62,19 @@ impl<T> TrackList<T> {
 
 impl<T> TrackList<T>
 where
-    T: IndicateCloseness + Mark,
+    T: IndicateCloseness + Mark + Active,
 {
+    fn active_close_past_idx(&self) -> Option<usize> {
+        self.ring
+            .iter()
+            .enumerate()
+            .skip(self.pos.map(|p| p + 1).unwrap_or(0))
+            .find_map(|(i, v)| match v.is_active() {
+                true => Some(i),
+                false => None,
+            })
+    }
+
     pub fn push(&mut self, val: T) {
         match self.pos {
             Some(p) => {
@@ -213,11 +95,7 @@ where
     }
 
     pub fn step_past(&mut self) -> Option<&mut T> {
-        if !self.past_exists() {
-            return None;
-        };
-
-        let pos = self.pos.map(|p| p + 1).unwrap_or(0);
+        let pos = self.active_close_past_idx()?;
         self.pos = Some(pos);
 
         {
@@ -268,11 +146,7 @@ where
     }
 
     pub fn pop_past(&mut self) -> Option<T> {
-        if !self.past_exists() {
-            return None;
-        };
-
-        let pos = self.pos.map(|p| p + 1).unwrap_or(0);
+        let pos = self.active_close_past_idx()?;
 
         if let Some(new_close) = self.ring.get_mut(pos + 1) {
             new_close.as_close_past();
@@ -294,6 +168,118 @@ where
         self.pos = new_pos;
 
         self.ring.remove(pos)
+    }
+
+    pub fn remove(&mut self, i: usize) {
+        match self.pos {
+            Some(p) => match i {
+                _ if i + 1 == p => {
+                    if let Some(next_past) = self.ring.get_mut(i + 1) {
+                        next_past.as_close_past();
+                    };
+                }
+
+                _ if i == p => {
+                    let nfi = p.checked_sub(1);
+                    self.pos = nfi;
+
+                    if let Some(nfi) = p.checked_sub(1) {
+                        if let Some(next_fut) = self.ring.get_mut(nfi) {
+                            next_fut.as_close_future();
+                        };
+                    }
+                }
+
+                _ if i < p => {
+                    let nfi = p.checked_sub(1);
+                    self.pos = nfi;
+                }
+
+                _ => {}
+            },
+            None if i == 0 => {
+                if let Some(next_past) = self.ring.get_mut(i + 1) {
+                    next_past.as_close_past();
+                };
+            }
+            _ => {}
+        }
+
+        let _ = self.ring.remove(i);
+    }
+
+    pub fn make_close_past(&mut self, idx: usize) -> Option<()> {
+        if let Some(p) = self.pos {
+            if p + 1 == idx {
+                return Some(());
+            }
+        }
+
+        let val = self.ring.get_mut(idx)?;
+        val.as_close_past();
+
+        let len = self.len();
+        if len == 1 {
+            self.pos = None;
+            return Some(());
+        }
+
+        match self.pos {
+            Some(p) => {
+                match idx.ge(&p) {
+                    // past -> close past
+                    true => {
+                        if let Some(old_close) = match self.pos {
+                            Some(p) => self.get_mut(p + 1),
+                            None => self.get_mut(0),
+                        } {
+                            old_close.as_past();
+                        };
+
+                        self.ring.swap(idx, p);
+
+                        if p + 1 < idx {
+                            self.ring.make_contiguous()[p..=idx].rotate_right(1);
+                        } else {
+                            self.pos = p.checked_sub(1);
+                        }
+
+                        Some(())
+                    }
+
+                    // future -> close past
+                    false => {
+                        match p.checked_sub(1) {
+                            Some(new_pos) => {
+                                if p == idx {
+                                    if let Some(close_new) = self.ring.get_mut(new_pos) {
+                                        close_new.as_close_future();
+                                    };
+                                }
+
+                                self.pos = Some(new_pos);
+                                self.ring.swap(idx, p);
+                                self.ring.make_contiguous()[idx..=new_pos].rotate_right(1);
+                            }
+                            None => {
+                                self.pos = None;
+                            }
+                        }
+
+                        Some(())
+                    }
+                }
+            }
+            None => {
+                if idx != 0 {
+                    self.ring.front_mut()?.as_past();
+                }
+
+                self.ring.make_contiguous()[0..=idx].rotate_right(1);
+
+                Some(())
+            }
+        }
     }
 }
 
@@ -339,6 +325,11 @@ mod tests {
         }
         fn open_buf(&self) -> Result<()> {
             Ok(())
+        }
+    }
+    impl Active for Num {
+        fn is_active(&self) -> bool {
+            true
         }
     }
 

@@ -22,7 +22,7 @@ impl Worker {
     pub fn run_jobs(mut self) {
         std::thread::spawn(move || {
             let debounce = &get_config().tracker.debounce_milliseconds;
-            let min_deb = min!(debounce.run, debounce.maintenance, debounce.show);
+            let min_deb = min!(debounce.run, debounce.maintenance, debounce.activate);
 
             let mut run_inst = Instant::now();
             let mut maint_inst = Instant::now();
@@ -45,7 +45,7 @@ impl Worker {
                 }
 
                 if let Some(tracker) = &mut self.tracker {
-                    tracker.show()?;
+                    tracker.activate()?;
                 };
 
                 Ok(())

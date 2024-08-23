@@ -41,7 +41,7 @@ pub struct Debounce {
     #[serde(deserialize_with = "duration_from_millis")]
     pub maintenance: Duration,
     #[serde(deserialize_with = "duration_from_millis")]
-    pub show: Duration,
+    pub activate: Duration,
 }
 
 impl Default for Debounce {
@@ -49,7 +49,7 @@ impl Default for Debounce {
         Self {
             run: Duration::from_millis(200),
             maintenance: Duration::from_millis(500),
-            show: Duration::from_millis(3000),
+            activate: Duration::from_millis(3000),
         }
     }
 }

@@ -127,7 +127,10 @@ Default configuration:
         debounce_milliseconds = {
             run = 200, -- Change checking interval
             maintenance = 500, -- Consistency enforcing interval
-            show = 3000, -- How long to wait before visualizing a freshly placed mark
+            -- How long to wait before activating a freshly placed mark
+            -- Inactive marks are not visualized and can't be jumped back to,
+            -- but still can be jump forward to and by using goto or follow commands
+            activate = 3000,
         },
         -- Files matching the following glob patterns will never be tracked
         ignored_patterns = {

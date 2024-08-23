@@ -129,13 +129,13 @@ impl Tracker {
                 buf_new == *buf && { lazy_extmark.pos(buf_new.clone()).is_nearby(&pos_new) }
             },
         ) {
-            nearby_record.hide_update(buf_new, tick_new, pos_new, RecordMarkTime::PastClose)?;
+            nearby_record.deact_update(buf_new, tick_new, pos_new, RecordMarkTime::PastClose)?;
 
             self.list.make_close_past(i);
             return Ok(());
         };
 
-        let record_new = Record::try_new_hidden(buf_new, tick_new, pos_new)?;
+        let record_new = Record::try_new_inactive(buf_new, tick_new, pos_new)?;
 
         self.list.push(record_new);
 
@@ -250,7 +250,7 @@ impl SyncTracker {
         Ok(())
     }
 
-    pub fn show(&mut self) -> Result<()> {
+    pub fn activate(&mut self) -> Result<()> {
         let conf = get_config();
 
         let curr_bufs: Vec<Buffer> = list_wins().filter_map(|w| w.get_buf().ok()).collect();
@@ -258,7 +258,7 @@ impl SyncTracker {
         let list = &mut self.lock()?.list;
         for r in list.iter_mut_from_future().filter(|r| {
             curr_bufs.iter().any(|b| b == &r.buf) &&
-            !matches!(r.lazy_extmark, LazyExtmark::Hidden((_, _, i)) if i.elapsed() < conf.tracker.debounce_milliseconds.show)
+            !matches!(r.lazy_extmark, LazyExtmark::Inactive((_, _, i)) if i.elapsed() < conf.tracker.debounce_milliseconds.activate)
         }) {
             r.load_extmark()?;
         }
