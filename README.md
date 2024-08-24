@@ -165,7 +165,7 @@ Default configuration:
             relative_goto = 50,
             absolute_goto = 100,
         },
-        -- Interactions that happen earlier than the cooldown won't be taken into accont when calculating marks' weights
+        -- Interactions that happen earlier than the cooldown won't be taken into account when calculating marks' weights
         cooldown_seconds = 60,
     },
 }

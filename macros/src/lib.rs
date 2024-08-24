@@ -15,7 +15,17 @@ pub fn derive_deserializing_from_lua(input: TokenStream) -> TokenStream {
         impl nvim_oxi::conversion::FromObject for #ident {
             fn from_object(obj: nvim_oxi::Object) -> core::result::Result<Self, nvim_oxi::conversion::Error> {
                 use serde::Deserialize;
-                Self::deserialize(nvim_oxi::serde::Deserializer::new(obj)).map_err(Into::into)
+                Ok(match Self::deserialize(nvim_oxi::serde::Deserializer::new(obj)).map_err(nvim_oxi::conversion::Error::from) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        let _ = nvim_oxi::api::notify(
+                            &format!("Bad compass function input: {}. Using defaults instead", e.to_string()),
+                            nvim_oxi::api::types::LogLevel::Error,
+                            &nvim_oxi::api::opts::NotifyOpts::builder().build(),
+                        );
+                        Self::default()
+                    },
+                })
             }
         }
 
