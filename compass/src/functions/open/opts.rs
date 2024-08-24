@@ -1,6 +1,6 @@
 use crate::{
     config::{get_config, WindowGridSize},
-    state::TypeRecord,
+    state::PlaceTypeRecord,
     viml::CompassArgs,
     Error, InputError, Result,
 };
@@ -45,10 +45,10 @@ impl TryFrom<&str> for RecordFilter {
     }
 }
 
-impl From<TypeRecord> for RecordFilter {
-    fn from(value: TypeRecord) -> Self {
+impl From<PlaceTypeRecord> for RecordFilter {
+    fn from(value: PlaceTypeRecord) -> Self {
         match value {
-            TypeRecord::Change(_) => Self::Change,
+            PlaceTypeRecord::Change(_) => Self::Change,
         }
     }
 }

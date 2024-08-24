@@ -4,7 +4,11 @@ pub use completion::*;
 mod opts;
 use opts::*;
 
-use crate::{state::frecency::FrecencyType, state::SyncTracker, InputError, Result};
+use crate::{
+    common_types::Direction,
+    state::{frecency::FrecencyType, SyncTracker},
+    InputError, Result,
+};
 
 use nvim_oxi::api::{get_current_win, set_current_buf};
 
@@ -67,7 +71,10 @@ pub fn get_goto(tracker: SyncTracker) -> impl Fn(Option<GotoOptions>) -> Result<
                     .list
                     .iter_mut_from_future()
                     .find(|r| {
-                        r.buf == t.buf && r.typ.tick().is_some_and(|rec_tick| rec_tick == t.tick)
+                        r.buf == t.buf
+                            && r.place_type
+                                .tick()
+                                .is_some_and(|rec_tick| rec_tick == t.tick)
                     })
                     .ok_or_else(|| InputError::NoRecords("no such record identified".to_owned()))?;
 

@@ -1,7 +1,7 @@
 use crate::{
     common_types::CursorPosition,
     state::frecency::Frecency,
-    state::{record::LazyExtmark, Record, TrackList, TypeRecord},
+    state::{record::LazyExtmark, PlaceTypeRecord, Record, TrackList},
     ui::record_mark::recreate_mark_time,
     Error, Result,
 };
@@ -23,7 +23,7 @@ pub struct DataSession {
 #[derive(Decode, Encode)]
 pub struct PersistentRecord {
     pub buf_handle: i32,
-    pub typ: TypeRecord,
+    pub place_type: PlaceTypeRecord,
     pub frecency: Frecency,
     pub cursor_pos: CursorPosition,
 }
@@ -39,7 +39,7 @@ impl TryFrom<&Record> for PersistentRecord {
     fn try_from(
         Record {
             buf,
-            typ,
+            place_type,
             lazy_extmark,
             frecency,
         }: &Record,
@@ -48,7 +48,7 @@ impl TryFrom<&Record> for PersistentRecord {
 
         Ok(Self {
             buf_handle: buf.handle(),
-            typ: *typ,
+            place_type: *place_type,
             cursor_pos,
             // TODO: this is bad
             frecency: frecency.clone(),
@@ -85,7 +85,7 @@ impl TryFrom<Session> for TrackList<Record> {
         for (i, r) in session.data.records.into_iter().enumerate() {
             track_list.push_plain(Record {
                 buf: r.buf_handle.into(),
-                typ: r.typ,
+                place_type: r.place_type,
                 lazy_extmark: LazyExtmark::Unloaded((
                     r.cursor_pos,
                     recreate_mark_time(i, track_list.pos),

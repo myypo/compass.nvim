@@ -2,7 +2,7 @@ use super::{load_session, record::LazyExtmark, save_session, track_list::Mark, S
 use crate::{
     common_types::CursorPosition,
     config::get_config,
-    state::{ChangeTypeRecord, Record, TrackList, TypeRecord},
+    state::{ChangeTypeRecord, PlaceTypeRecord, Record, TrackList},
     ui::{namespace::get_namespace, record_mark::RecordMarkTime},
     Result,
 };
@@ -104,16 +104,20 @@ impl Tracker {
             if is_initial_tick(tick_new) {
                 return Ok(());
             };
-            if !self.list.iter_from_future().all(|Record { buf, typ, .. }| {
-                (match typ {
-                    TypeRecord::Change(ChangeTypeRecord::Tick(t)) => tick_new != *t,
-                    _ => true,
-                }) || buf_new != *buf
-            }) {
+            if !self.list.iter_from_future().all(
+                |Record {
+                     buf, place_type, ..
+                 }| {
+                    (match place_type {
+                        PlaceTypeRecord::Change(ChangeTypeRecord::Tick(t)) => tick_new != *t,
+                        _ => true,
+                    }) || buf_new != *buf
+                },
+            ) {
                 return Ok(());
             }
 
-            TypeRecord::Change(ChangeTypeRecord::Tick(tick_new))
+            PlaceTypeRecord::Change(ChangeTypeRecord::Tick(tick_new))
         };
 
         let win = get_current_win();

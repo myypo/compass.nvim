@@ -1,12 +1,13 @@
 use crate::{
-    common_types::Timestamp, state::frecency::FrecencyType, state::Tick, viml::CompassArgs, Error,
-    InputError, Result,
+    common_types::{Direction, Timestamp},
+    state::{frecency::FrecencyType, Tick},
+    viml::CompassArgs,
+    Error, InputError, Result,
 };
 use macros::FromLua;
 
 use nvim_oxi::api::Buffer;
 use serde::Deserialize;
-use strum_macros::EnumString;
 
 #[derive(Debug, Deserialize, FromLua)]
 #[serde(rename_all = "lowercase")]
@@ -32,14 +33,6 @@ impl Default for RelativeOptions {
             direction: Direction::Back,
         }
     }
-}
-
-#[derive(Debug, Deserialize, EnumString)]
-#[serde(rename_all = "lowercase")]
-#[strum(serialize_all = "lowercase")]
-pub enum Direction {
-    Back,
-    Forward,
 }
 
 #[derive(Debug, Deserialize)]

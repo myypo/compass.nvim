@@ -36,7 +36,7 @@ mod tests {
 
     use nvim_oxi::api::get_current_buf;
 
-    use crate::state::{ChangeTypeRecord, TypeRecord};
+    use crate::state::{ChangeTypeRecord, PlaceTypeRecord};
 
     #[nvim_oxi::test]
     fn can_save_and_load_session() {
@@ -46,7 +46,7 @@ mod tests {
                 list.push(
                     Record::try_new(
                         get_current_buf(),
-                        TypeRecord::Change(ChangeTypeRecord::Tick(i.into())),
+                        PlaceTypeRecord::Change(ChangeTypeRecord::Tick(i.into())),
                         &(1, 0).into(),
                     )
                     .unwrap(),
@@ -63,7 +63,7 @@ mod tests {
         let got = load_session(&path).unwrap();
         let mut want = list.iter_from_future();
         for r in got.iter_from_future() {
-            assert_eq!(r.typ, want.next().unwrap().typ);
+            assert_eq!(r.place_type, want.next().unwrap().place_type);
         }
     }
 }

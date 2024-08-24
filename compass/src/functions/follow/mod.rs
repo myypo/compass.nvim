@@ -100,7 +100,7 @@ fn follow_buf(
 }
 
 mod tests {
-    use crate::state::{ChangeTypeRecord, TypeRecord};
+    use crate::state::{ChangeTypeRecord, PlaceTypeRecord};
 
     use super::*;
 
@@ -114,7 +114,7 @@ mod tests {
         record_list.push(
             Record::try_new(
                 buf1.clone(),
-                TypeRecord::Change(ChangeTypeRecord::Tick(3.into())),
+                PlaceTypeRecord::Change(ChangeTypeRecord::Tick(3.into())),
                 &(3, 3).into(),
             )
             .unwrap(),
@@ -122,7 +122,7 @@ mod tests {
         record_list.push(
             Record::try_new(
                 buf2,
-                TypeRecord::Change(ChangeTypeRecord::Tick(2.into())),
+                PlaceTypeRecord::Change(ChangeTypeRecord::Tick(2.into())),
                 &(2, 2).into(),
             )
             .unwrap(),
@@ -130,7 +130,7 @@ mod tests {
         record_list.push(
             Record::try_new(
                 buf1.clone(),
-                TypeRecord::Change(ChangeTypeRecord::Tick(1.into())),
+                PlaceTypeRecord::Change(ChangeTypeRecord::Tick(1.into())),
                 &(1, 1).into(),
             )
             .unwrap(),
@@ -140,12 +140,12 @@ mod tests {
             follow_buf(buf1, &mut record_list, WindowGridSize::default()).unwrap();
 
         assert_eq!(
-            record_vec.first().unwrap().typ,
-            TypeRecord::Change(ChangeTypeRecord::Tick(1.into()))
+            record_vec.first().unwrap().place_type,
+            PlaceTypeRecord::Change(ChangeTypeRecord::Tick(1.into()))
         );
         assert_eq!(
-            record_vec.get(1).unwrap().typ,
-            TypeRecord::Change(ChangeTypeRecord::Tick(3.into()))
+            record_vec.get(1).unwrap().place_type,
+            PlaceTypeRecord::Change(ChangeTypeRecord::Tick(3.into()))
         );
         let def_keymaps = &get_config().picker.jump_keys;
         assert_eq!(*jump_keymaps.first().unwrap(), def_keymaps.get(0).unwrap()); // j

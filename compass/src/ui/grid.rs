@@ -1,7 +1,7 @@
 use crate::{
     common_types::{CursorRange, Extmark},
     config::{JumpKeymap, WindowGridSize},
-    state::{ChangeTypeRecord, Record, TypeRecord},
+    state::{ChangeTypeRecord, PlaceTypeRecord, Record},
     ui::{record_mark::create_hint_mark, tab::open_tab},
     Result,
 };
@@ -190,8 +190,8 @@ fn open_hidden_float() -> Result<(Window, Buffer, String)> {
 }
 
 fn get_goto_string(record: &Record) -> String {
-    match record.typ {
-        TypeRecord::Change(typ) => match typ {
+    match record.place_type {
+        PlaceTypeRecord::Change(typ) => match typ {
             ChangeTypeRecord::Tick(t) => {
                 format!(r#"tick={{"buf":{},"tick":{}}}"#, record.buf.handle(), t)
             }

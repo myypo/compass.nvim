@@ -1,7 +1,7 @@
 pub mod frecency;
 
 mod record;
-pub use record::{ChangeTypeRecord, Record, Tick, TypeRecord};
+pub use record::{ChangeTypeRecord, PlaceTypeRecord, Record, Tick};
 
 mod session;
 use session::*;

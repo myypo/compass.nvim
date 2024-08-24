@@ -4,7 +4,7 @@ pub use completion::*;
 mod opts;
 use opts::*;
 
-use crate::{state::SyncTracker, Result};
+use crate::{common_types::Direction, state::SyncTracker, Result};
 
 use nvim_oxi::api::{get_current_win, set_current_buf};
 

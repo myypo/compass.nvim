@@ -5,7 +5,7 @@ mod opts;
 use opts::*;
 
 use crate::{
-    state::{ChangeTypeRecord, Record, SyncTracker, TrackList, TypeRecord},
+    state::{ChangeTypeRecord, PlaceTypeRecord, Record, SyncTracker, TrackList},
     ui::record_mark::RecordMarkTime,
     Result,
 };
@@ -42,7 +42,7 @@ pub fn get_place(sync_tracker: SyncTracker) -> impl Fn(Option<PlaceOptions>) -> 
 
                 old_record.update(
                     buf_curr,
-                    TypeRecord::Change(ChangeTypeRecord::Manual(old_record.typ.tick())),
+                    PlaceTypeRecord::Change(ChangeTypeRecord::Manual(old_record.place_type.tick())),
                     pos_curr,
                     RecordMarkTime::PastClose,
                 )?;
@@ -61,7 +61,7 @@ fn new_change_manual_record(
 ) -> Result<()> {
     let record_new = Record::try_new(
         buf,
-        TypeRecord::Change(ChangeTypeRecord::Manual(None)),
+        PlaceTypeRecord::Change(ChangeTypeRecord::Manual(None)),
         &win.get_cursor()?.into(),
     )?;
 

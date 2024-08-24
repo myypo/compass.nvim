@@ -16,7 +16,7 @@ use super::track_list::{Active, Mark};
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Record {
     pub buf: Buffer,
-    pub typ: TypeRecord,
+    pub place_type: PlaceTypeRecord,
     pub lazy_extmark: LazyExtmark,
     pub frecency: Frecency,
 }
@@ -54,7 +54,7 @@ impl LazyExtmark {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Decode, Encode)]
-pub enum TypeRecord {
+pub enum PlaceTypeRecord {
     Change(ChangeTypeRecord),
 }
 
@@ -80,7 +80,7 @@ pub enum ChangeTypeRecord {
     Manual(Option<Tick>),
 }
 
-impl TypeRecord {
+impl PlaceTypeRecord {
     pub fn tick(self) -> Option<Tick> {
         match self {
             Self::Change(c) => match c {
@@ -92,21 +92,25 @@ impl TypeRecord {
 }
 
 impl Record {
-    pub fn try_new(buf: Buffer, typ: TypeRecord, pos: &CursorPosition) -> Result<Self> {
+    pub fn try_new(buf: Buffer, place_type: PlaceTypeRecord, pos: &CursorPosition) -> Result<Self> {
         let extmark = create_record_mark(buf.clone(), &pos.into(), RecordMarkTime::PastClose)?;
 
         Ok(Self {
             buf,
-            typ,
+            place_type,
             lazy_extmark: LazyExtmark::Loaded(extmark),
             frecency: Frecency::new(),
         })
     }
 
-    pub fn try_new_inactive(buf: Buffer, typ: TypeRecord, pos: CursorPosition) -> Result<Self> {
+    pub fn try_new_inactive(
+        buf: Buffer,
+        place_type: PlaceTypeRecord,
+        pos: CursorPosition,
+    ) -> Result<Self> {
         Ok(Self {
             buf,
-            typ,
+            place_type,
             lazy_extmark: LazyExtmark::Inactive((pos, RecordMarkTime::PastClose, Instant::now())),
             frecency: Frecency::new(),
         })
@@ -135,7 +139,7 @@ impl Record {
     pub fn update(
         &mut self,
         buf: Buffer,
-        typ: TypeRecord,
+        place_type: PlaceTypeRecord,
         pos: CursorPosition,
         time: RecordMarkTime,
     ) -> Result<()> {
@@ -155,7 +159,7 @@ impl Record {
             }
         };
 
-        self.typ = typ;
+        self.place_type = place_type;
         self.frecency.add_record(FrecencyType::Update);
 
         Ok(())
@@ -164,7 +168,7 @@ impl Record {
     pub fn deact_update(
         &mut self,
         buf: Buffer,
-        typ: TypeRecord,
+        place_type: PlaceTypeRecord,
         pos: CursorPosition,
         time: RecordMarkTime,
     ) -> Result<()> {
@@ -173,7 +177,7 @@ impl Record {
         }
 
         self.lazy_extmark = LazyExtmark::Inactive((pos, time, Instant::now()));
-        self.typ = typ;
+        self.place_type = place_type;
         self.frecency.add_record(FrecencyType::Update);
 
         Ok(())
@@ -189,10 +193,10 @@ impl Record {
         Ok(())
     }
 
-    pub fn goto(&mut self, win: Window, typ: FrecencyType) -> Result<()> {
+    pub fn goto(&mut self, win: Window, place_type: FrecencyType) -> Result<()> {
         self.jump(win)?;
 
-        self.frecency.add_record(typ);
+        self.frecency.add_record(place_type);
 
         Ok(())
     }
@@ -291,7 +295,7 @@ mod tests {
 
         let got = Record::try_new(
             buf.clone(),
-            TypeRecord::Change(ChangeTypeRecord::Tick(15.into())),
+            PlaceTypeRecord::Change(ChangeTypeRecord::Tick(15.into())),
             &pos,
         )
         .unwrap();

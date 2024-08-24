@@ -34,7 +34,7 @@ pub fn get_open(tracker: SyncTracker) -> impl Fn(Option<OpenOptions>) -> Result<
             let iter = get_unique_bufs_priority(max_windows, list)?.into_iter();
             match record_types {
                 Some(record_types) => iter
-                    .filter(|&r| record_types.iter().any(|&f| f == r.typ.into()))
+                    .filter(|&r| record_types.iter().any(|&f| f == r.place_type.into()))
                     .collect(),
                 None => iter.collect(),
             }
@@ -103,7 +103,7 @@ pub fn get_unique_bufs_priority(
 }
 
 mod tests {
-    use crate::state::{ChangeTypeRecord, TypeRecord};
+    use crate::state::{ChangeTypeRecord, PlaceTypeRecord};
 
     use super::*;
 
@@ -116,7 +116,7 @@ mod tests {
         tracker.list.push(
             Record::try_new(
                 Buffer::current(),
-                TypeRecord::Change(ChangeTypeRecord::Tick(42.into())),
+                PlaceTypeRecord::Change(ChangeTypeRecord::Tick(42.into())),
                 &CursorPosition::from((1, 2)),
             )
             .unwrap(),
@@ -135,7 +135,7 @@ mod tests {
         tracker.list.push(
             Record::try_new(
                 Buffer::current(),
-                TypeRecord::Change(ChangeTypeRecord::Tick(42.into())),
+                PlaceTypeRecord::Change(ChangeTypeRecord::Tick(42.into())),
                 &CursorPosition::from((1, 2)),
             )
             .unwrap(),
@@ -158,28 +158,28 @@ mod tests {
         let unique_buf = create_buf(true, false).unwrap();
         let rec1 = Record::try_new(
             repeated_buf.clone(),
-            TypeRecord::Change(ChangeTypeRecord::Tick(4.into())),
+            PlaceTypeRecord::Change(ChangeTypeRecord::Tick(4.into())),
             &CursorPosition::from((2, 2)),
         )
         .unwrap();
         tracker.list.push(rec1);
         let rec2 = Record::try_new(
             repeated_buf.clone(),
-            TypeRecord::Change(ChangeTypeRecord::Tick(11.into())),
+            PlaceTypeRecord::Change(ChangeTypeRecord::Tick(11.into())),
             &CursorPosition::from((4, 6)),
         )
         .unwrap();
         tracker.list.push(rec2);
         let rec3 = Record::try_new(
             unique_buf.clone(),
-            TypeRecord::Change(ChangeTypeRecord::Tick(15.into())),
+            PlaceTypeRecord::Change(ChangeTypeRecord::Tick(15.into())),
             &CursorPosition::from((5, 11)),
         )
         .unwrap();
         tracker.list.push(rec3.clone());
         let rec4 = Record::try_new(
             repeated_buf.clone(),
-            TypeRecord::Change(ChangeTypeRecord::Tick(16.into())),
+            PlaceTypeRecord::Change(ChangeTypeRecord::Tick(16.into())),
             &CursorPosition::from((15, 42)),
         )
         .unwrap();

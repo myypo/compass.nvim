@@ -1,8 +1,7 @@
-use crate::{viml::CompassArgs, Error, InputError, Result};
+use crate::{common_types::Direction, viml::CompassArgs, Error, InputError, Result};
 use macros::FromLua;
 
 use serde::Deserialize;
-use strum_macros::EnumString;
 
 #[derive(Debug, Deserialize, FromLua)]
 #[serde(rename_all = "lowercase")]
@@ -28,15 +27,6 @@ impl Default for RelativeOptions {
             direction: Direction::Back,
         }
     }
-}
-
-#[derive(Default, Debug, Deserialize, EnumString)]
-#[serde(rename_all = "lowercase")]
-#[strum(serialize_all = "lowercase")]
-pub enum Direction {
-    #[default]
-    Back,
-    Forward,
 }
 
 impl<'a> TryFrom<CompassArgs<'a>> for PopOptions {
