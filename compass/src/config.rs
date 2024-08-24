@@ -28,13 +28,18 @@ pub fn set_config(conf: Config) {
 #[derive(Debug, serde::Deserialize, Default, macros::FromLua)]
 #[serde(default)]
 pub struct Config {
+    #[serde(default)]
     pub picker: PickerConfig,
 
+    #[serde(default)]
     pub tracker: TrackerConfig,
 
+    #[serde(default)]
     pub marks: MarksConfig,
 
+    #[serde(default)]
     pub persistence: PersistenceConfig,
 
+    #[serde(default)]
     pub frecency: FrecencyConfig,
 }

@@ -36,20 +36,38 @@ where
 
 #[derive(Debug, Deserialize)]
 pub struct Debounce {
-    #[serde(deserialize_with = "duration_from_millis")]
+    #[serde(default = "default_run", deserialize_with = "duration_from_millis")]
     pub run: Duration,
-    #[serde(deserialize_with = "duration_from_millis")]
+    #[serde(
+        default = "default_maintenance",
+        deserialize_with = "duration_from_millis"
+    )]
     pub maintenance: Duration,
-    #[serde(deserialize_with = "duration_from_millis")]
+    #[serde(
+        default = "default_activate",
+        deserialize_with = "duration_from_millis"
+    )]
     pub activate: Duration,
+}
+
+fn default_run() -> Duration {
+    Duration::from_millis(200)
+}
+
+fn default_maintenance() -> Duration {
+    Duration::from_millis(500)
+}
+
+fn default_activate() -> Duration {
+    Duration::from_millis(3000)
 }
 
 impl Default for Debounce {
     fn default() -> Self {
         Self {
-            run: Duration::from_millis(200),
-            maintenance: Duration::from_millis(500),
-            activate: Duration::from_millis(3000),
+            run: default_run(),
+            maintenance: default_maintenance(),
+            activate: default_activate(),
         }
     }
 }
