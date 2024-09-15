@@ -1,4 +1,7 @@
-use std::collections::vec_deque::{Iter, IterMut, VecDeque};
+use std::{
+    collections::vec_deque::{Iter, IterMut, VecDeque},
+    iter::Rev,
+};
 
 use crate::{state::frecency::FrecencyScore, Result};
 
@@ -48,6 +51,10 @@ impl<T> TrackList<T> {
 
     pub fn iter_mut_from_future(&mut self) -> IterMut<T> {
         self.ring.iter_mut()
+    }
+
+    pub fn iter_from_past(&self) -> Rev<Iter<T>> {
+        self.ring.iter().rev()
     }
 
     pub fn get_mut(&mut self, i: usize) -> Option<&mut T> {
@@ -170,7 +177,7 @@ where
         self.ring.remove(pos)
     }
 
-    pub fn remove(&mut self, i: usize) {
+    pub fn remove(&mut self, i: usize) -> Option<T> {
         match self.pos {
             Some(p) => match i {
                 _ if i + 1 == p => {
@@ -205,7 +212,7 @@ where
             _ => {}
         }
 
-        let _ = self.ring.remove(i);
+        self.ring.remove(i)
     }
 
     pub fn make_close_past(&mut self, idx: usize) -> Option<()> {

@@ -47,7 +47,7 @@ impl<'a> TryFrom<CompassArgs<'a>> for PopOptions {
                     .copied()
                     .ok_or_else(|| {
                         InputError::FunctionArguments(
-                            "have chosen `relative` but not specifed the direction".to_owned(),
+                            "have chosen `relative` but not specified the direction".to_owned(),
                         )
                     })?
                     .try_into()

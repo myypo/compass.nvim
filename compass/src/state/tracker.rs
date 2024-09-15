@@ -151,32 +151,28 @@ impl Tracker {
     /// on, let's say, a continuous undo, where new adjacent marks will be created.
     /// In a perfect world this should be optional.
     fn merge(&mut self, buf: Buffer) -> Result<()> {
-        let mut list_idx: Vec<usize> = Vec::new();
-        for (io, ro) in self
+        let mut del_indices = Vec::new();
+        for (i, r) in self
             .list
             .iter_from_future()
             .enumerate()
             .filter(|(_, r)| r.buf == buf)
         {
-            let p = ro.lazy_extmark.pos(buf.clone());
-
-            for (ii, ri) in self
+            let pos = r.lazy_extmark.pos(buf.clone());
+            if self
                 .list
-                .iter_from_future()
-                .enumerate()
-                .skip(io + 1)
-                .filter(|(_, r)| r.buf == buf && r.lazy_extmark.pos(buf.clone()).is_nearby(&p))
+                .iter_from_past()
+                .take(self.list.len() - i - 1)
+                .any(|r| r.buf == buf && r.lazy_extmark.pos(buf.clone()).is_nearby(&pos))
             {
-                ri.lazy_extmark.delete(buf.clone())?;
-
-                if let Some(ii) = ii.checked_sub(1) {
-                    list_idx.push(ii);
-                }
+                del_indices.push(i);
             }
         }
 
-        for i in list_idx {
-            self.list.remove(i);
+        for i in del_indices.into_iter().rev() {
+            if let Some(e) = self.list.remove(i).map(|r| r.lazy_extmark) {
+                e.delete(buf.clone())?;
+            }
         }
 
         Ok(())
