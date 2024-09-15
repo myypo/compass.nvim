@@ -11,6 +11,7 @@ pub struct CursorPosition {
 }
 
 /// 0,0 indexed
+#[derive(Debug, PartialEq, Eq)]
 pub struct CursorRange {
     pub line: usize,
     pub col: usize,
@@ -68,6 +69,21 @@ impl From<&CursorPosition> for CursorRange {
     fn from(value: &CursorPosition) -> Self {
         Self {
             line: value.line.saturating_sub(1),
+            col: value.col,
+        }
+    }
+}
+
+impl From<(usize, usize)> for CursorRange {
+    fn from((line, col): (usize, usize)) -> Self {
+        Self { line, col }
+    }
+}
+
+impl From<&CursorRange> for CursorPosition {
+    fn from(value: &CursorRange) -> Self {
+        Self {
+            line: value.line + 1,
             col: value.col,
         }
     }

@@ -1,6 +1,6 @@
 use super::{grid::GridLayout, namespace::get_namespace};
 use crate::{
-    common_types::{CursorRange, Extmark},
+    common_types::{CursorPosition, CursorRange, Extmark},
     config::{get_config, SignText},
     highlights::{HintHighlightList, RecordHighlightList, RecordHighlightNames},
     Error, Result,
@@ -64,7 +64,7 @@ impl From<RecordMarkTime> for &SignText {
 }
 
 /// Returns and accepts a 0,0 indexed position with column being end-inclusive
-fn get_non_blank_pos(buf: Buffer, line: usize, col: usize) -> (usize, usize) {
+fn get_non_blank_pos(buf: Buffer, &CursorRange { line, col }: &CursorRange) -> CursorRange {
     fn get_first_non_blank_col(
         buf: Buffer,
         line: usize,
@@ -98,52 +98,53 @@ fn get_non_blank_pos(buf: Buffer, line: usize, col: usize) -> (usize, usize) {
     }
 
     if let Some(nb_col) = get_first_non_blank_col(buf.clone(), line, Some(col)) {
-        return (line, nb_col);
+        return (line, nb_col).into();
     };
 
     for i in 1..=5 {
         let add_line = line + i;
         if let Some(nb_col) = get_first_non_blank_col(buf.clone(), add_line, None) {
-            return (add_line, nb_col);
+            return (add_line, nb_col).into();
         };
 
         if let Some(sub_line) = line.checked_sub(i) {
             if let Some(nb_col) = get_first_non_blank_col(buf.clone(), sub_line, None) {
-                return (sub_line, nb_col);
+                return (sub_line, nb_col).into();
             };
         }
     }
 
-    (line, col)
+    (line, col).into()
 }
 
 pub fn create_record_mark(
     mut buf: Buffer,
-    &CursorRange { line, col }: &CursorRange,
+    ran: &CursorRange,
     time: RecordMarkTime,
 ) -> Result<Extmark> {
-    let (line, col) = get_non_blank_pos(buf.clone(), line, col);
+    let ran = get_non_blank_pos(buf.clone(), ran);
 
-    let set_opts = &basic_mark_builder(&mut SetExtmarkOpts::builder(), line, col, time).build();
+    let set_opts =
+        &basic_mark_builder(&mut SetExtmarkOpts::builder(), ran.line, ran.col, time).build();
 
-    buf.set_extmark(get_namespace().into(), line, col, set_opts)
-        .map(|id| Extmark::new(id, (line, col).into()))
+    buf.set_extmark(get_namespace().into(), ran.line, ran.col, set_opts)
+        .map(|id| Extmark::new(id, Into::<CursorPosition>::into(&ran)))
         .map_err(Into::<Error>::into)
 }
 
 pub fn update_record_mark(
     extmark: &Extmark,
     mut buf: Buffer,
-    &CursorRange { line, col }: &CursorRange,
+    ran: &CursorRange,
     time: RecordMarkTime,
 ) -> Result<()> {
-    let (line, col) = get_non_blank_pos(buf.clone(), line, col);
+    let ran = get_non_blank_pos(buf.clone(), ran);
 
-    let set_opts = &basic_mark_builder(&mut SetExtmarkOpts::builder(), line, col, time)
+    let set_opts = &basic_mark_builder(&mut SetExtmarkOpts::builder(), ran.line, ran.col, time)
         .id(Into::<u32>::into(extmark))
         .build();
 
-    buf.set_extmark(get_namespace().into(), line, col, set_opts)
+    buf.set_extmark(get_namespace().into(), ran.line, ran.col, set_opts)
         .map(|_| ())
         .map_err(Into::into)
 }
@@ -250,9 +251,9 @@ mod tests {
         )
         .unwrap();
 
-        let got = get_non_blank_pos(buf, 1, 0);
+        let got = get_non_blank_pos(buf, &(1usize, 0usize).into());
 
-        assert_eq!(got, (1, 6));
+        assert_eq!(got, (1usize, 6usize).into());
     }
 
     #[nvim_oxi::test]
@@ -272,9 +273,9 @@ mod tests {
         )
         .unwrap();
 
-        let got = get_non_blank_pos(buf, 2, 0);
+        let got = get_non_blank_pos(buf, &(2usize, 0usize).into());
 
-        assert_eq!(got, (4, 2));
+        assert_eq!(got, (4usize, 2usize).into());
     }
 
     #[nvim_oxi::test]
@@ -295,9 +296,9 @@ mod tests {
         )
         .unwrap();
 
-        let got = get_non_blank_pos(buf, 3, 0);
+        let got = get_non_blank_pos(buf, &(3usize, 0usize).into());
 
-        assert_eq!(got, (1, 2));
+        assert_eq!(got, (1usize, 2usize).into());
     }
 
     #[nvim_oxi::test]
@@ -306,19 +307,19 @@ mod tests {
         buf.set_lines(.., true, ["\t\topener line", "\t 234567", "  finish line"])
             .unwrap();
 
-        let got = get_non_blank_pos(buf, 1, 7);
+        let got = get_non_blank_pos(buf, &(1usize, 7usize).into());
 
-        assert_eq!(got, (1, 7));
+        assert_eq!(got, (1usize, 7usize).into());
     }
 
     #[nvim_oxi::test]
     fn recreates_mark_track_respecting_pos_middle() {
-        let pos = Some(1);
+        let ran = Some(1);
 
         let r = 0..4;
         let mut hl_vec = Vec::new();
         for i in r {
-            hl_vec.push(recreate_mark_time(i, pos));
+            hl_vec.push(recreate_mark_time(i, ran));
         }
 
         let want = Vec::from([
@@ -332,12 +333,12 @@ mod tests {
 
     #[nvim_oxi::test]
     fn recreates_mark_track_respecting_pos_start() {
-        let pos = None;
+        let ran = None;
 
         let r = 0..4;
         let mut hl_vec = Vec::new();
         for i in r {
-            hl_vec.push(recreate_mark_time(i, pos));
+            hl_vec.push(recreate_mark_time(i, ran));
         }
 
         let want = Vec::from([

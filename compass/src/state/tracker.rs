@@ -148,7 +148,7 @@ impl Tracker {
 
     /// Merges closely placed marks into a single one by removing the older ones.
     /// HACK: Kinda necessary because of an existing race condition that might occur
-    /// on, let's say, a continious undo, where new adjacent marks will be created.
+    /// on, let's say, a continuous undo, where new adjacent marks will be created.
     /// In a perfect world this should be optional.
     fn merge(&mut self, buf: Buffer) -> Result<()> {
         let mut list_idx: Vec<usize> = Vec::new();
