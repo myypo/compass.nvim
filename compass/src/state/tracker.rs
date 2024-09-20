@@ -222,19 +222,9 @@ impl SyncTracker {
         let mut tracker = self.lock()?;
 
         tracker.track(buf_curr.clone())?;
-
-        let conf = get_config();
-
-        if conf.persistence.enable {
+        if get_config().persistence.enable {
             tracker.renew_buf_record_marks(buf_curr)?;
-
-            let path = conf.persistence.path.as_ref().ok_or_else(|| {
-                anyhow!(
-                    "changes tracker persistence enabled yet no specified save state path found"
-                )
-            })?;
-            tracker.persist_state(path)?;
-        };
+        }
 
         Ok(())
     }
@@ -258,10 +248,17 @@ impl SyncTracker {
         let list = &mut self.lock()?.list;
         for r in list.iter_mut_from_future().filter(|r| {
             curr_bufs.iter().any(|b| b == &r.buf) &&
-            !matches!(r.lazy_extmark, LazyExtmark::Inactive((_, _, i)) if i.elapsed() < conf.tracker.debounce_milliseconds.activate)
+            matches!(r.lazy_extmark, LazyExtmark::Inactive((_, _, i)) if i.elapsed() > conf.tracker.debounce_milliseconds.activate)
         }) {
             r.load_extmark()?;
         }
+
+        Ok(())
+    }
+
+    pub fn persist_state(&mut self, path: &Path) -> Result<()> {
+        let tracker = &mut self.lock()?;
+        tracker.persist_state(path)?;
 
         Ok(())
     }

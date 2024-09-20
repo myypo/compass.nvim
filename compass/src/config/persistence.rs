@@ -2,22 +2,26 @@ use crate::Result;
 use std::{
     env, fs,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 use anyhow::anyhow;
-use serde::{de, Deserialize, Serialize};
+use serde::{de, Deserialize};
 use strum::VariantNames;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct PersistenceConfig {
-    #[serde(default = "default_enable")]
     pub enable: bool,
-    #[serde(default)]
     pub path: Option<PathBuf>,
+    pub interval_milliseconds: Duration,
 }
 
 fn default_enable() -> bool {
     true
+}
+
+fn default_interval() -> Duration {
+    Duration::from_millis(3000)
 }
 
 fn default_path() -> Result<PathBuf> {
@@ -71,20 +75,21 @@ fn escaped_path(path: &Path) -> Result<String> {
     })
 }
 
-#[derive(Deserialize, strum_macros::VariantNames)]
-#[strum(serialize_all = "lowercase")]
-#[serde(field_identifier, rename_all = "lowercase")]
-enum PersistenceField {
-    Enable,
-    Path,
-}
-
 impl<'de> de::Deserialize<'de> for PersistenceConfig {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: de::Deserializer<'de>,
     {
         struct PersistenceVisitor;
+
+        #[derive(Deserialize, strum_macros::VariantNames)]
+        #[strum(serialize_all = "snake_case")]
+        #[serde(field_identifier, rename_all = "snake_case")]
+        enum PersistenceField {
+            Enable,
+            Path,
+            IntervalMilliseconds,
+        }
 
         impl<'de> de::Visitor<'de> for PersistenceVisitor {
             type Value = PersistenceConfig;
@@ -99,6 +104,7 @@ impl<'de> de::Deserialize<'de> for PersistenceConfig {
             {
                 let mut enable = None;
                 let mut path = None;
+                let mut interval_milliseconds = None;
                 while let Some(key) = map.next_key()? {
                     match key {
                         PersistenceField::Enable => {
@@ -120,6 +126,12 @@ impl<'de> de::Deserialize<'de> for PersistenceConfig {
                                 Err(e) => return Err(de::Error::custom(e)),
                             };
                         }
+                        PersistenceField::IntervalMilliseconds => {
+                            if interval_milliseconds.is_some() {
+                                return Err(de::Error::duplicate_field("interval_milliseconds"));
+                            }
+                            interval_milliseconds = Some(Duration::from_millis(map.next_value()?))
+                        }
                     }
                 }
 
@@ -134,7 +146,13 @@ impl<'de> de::Deserialize<'de> for PersistenceConfig {
                     }
                 }
 
-                Ok(PersistenceConfig { enable, path })
+                let interval_milliseconds = interval_milliseconds.unwrap_or_else(default_interval);
+
+                Ok(PersistenceConfig {
+                    enable,
+                    path,
+                    interval_milliseconds,
+                })
             }
         }
 
@@ -154,6 +172,7 @@ impl Default for PersistenceConfig {
                 Ok(p) => Some(p),
                 Err(_) => None,
             },
+            interval_milliseconds: default_interval(),
         }
     }
 }

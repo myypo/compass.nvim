@@ -94,7 +94,7 @@ Default configuration:
     -- Options for the plugin marks
     marks = {
         -- When applicable, how close an old plugin mark has to be to the newly placed one
-        -- for the old one to be moved to the new position instead of actually creating a new seperate mark
+        -- for the old one to be moved to the new position instead of actually creating a new separate mark
         -- Absence of a defined value means that the condition will always evaluate to false
         update_range = {
             lines = {
@@ -142,6 +142,7 @@ Default configuration:
     persistence = {
         enable = true, -- Whether to persist the plugin state on the disk
         path = nil, -- Absolute path to where to persist the state, by default it assumes the default neovim share path
+        interval_milliseconds = 3000, -- How often to write the plugin state to disk
     },
 
     -- Weights and options for the frecency algorithm

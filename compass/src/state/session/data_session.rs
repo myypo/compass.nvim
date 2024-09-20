@@ -1,14 +1,13 @@
 use crate::{
     common_types::CursorPosition,
-    state::frecency::Frecency,
-    state::{record::LazyExtmark, PlaceTypeRecord, Record, TrackList},
+    state::{frecency::Frecency, record::LazyExtmark, PlaceTypeRecord, Record, TrackList},
     ui::record_mark::recreate_mark_time,
     Error, Result,
 };
 
 use bitcode::{Decode, Encode};
 
-#[derive(Decode, Encode)]
+#[derive(Decode, Encode, Default)]
 pub struct Session {
     pub version: Version,
     pub data: DataSession,
@@ -28,8 +27,9 @@ pub struct PersistentRecord {
     pub cursor_pos: CursorPosition,
 }
 
-#[derive(Decode, Encode)]
+#[derive(Decode, Encode, Default)]
 pub enum Version {
+    #[default]
     One = 1,
 }
 
@@ -66,7 +66,7 @@ impl TryFrom<&TrackList<Record>> for Session {
         }
 
         Ok(Self {
-            version: Version::One,
+            version: Version::default(),
             data: DataSession {
                 pos: data.pos,
                 records,
@@ -82,27 +82,27 @@ impl TryFrom<Session> for TrackList<Record> {
         let mut track_list: TrackList<Record> =
             TrackList::with_capacity(session.data.records.len(), session.data.pos);
 
-        for (i, r) in session.data.records.into_iter().enumerate() {
+        for (
+            i,
+            PersistentRecord {
+                buf_handle,
+                place_type,
+                frecency,
+                cursor_pos,
+            },
+        ) in session.data.records.into_iter().enumerate()
+        {
             track_list.push_plain(Record {
-                buf: r.buf_handle.into(),
-                place_type: r.place_type,
+                buf: buf_handle.into(),
+                place_type,
                 lazy_extmark: LazyExtmark::Unloaded((
-                    r.cursor_pos,
+                    cursor_pos,
                     recreate_mark_time(i, track_list.pos),
                 )),
-                frecency: r.frecency,
+                frecency,
             });
         }
 
         Ok(track_list)
-    }
-}
-
-impl Default for Session {
-    fn default() -> Self {
-        Self {
-            version: Version::One,
-            data: DataSession::default(),
-        }
     }
 }
