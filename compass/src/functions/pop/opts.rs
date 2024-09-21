@@ -4,7 +4,7 @@ use macros::FromLua;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, FromLua)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum PopOptions {
     Relative(RelativeOptions),
 }

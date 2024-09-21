@@ -2,7 +2,7 @@ use std::fs;
 
 use proc_macro::TokenStream;
 use proc_macro2::Span;
-use quote::{quote, ToTokens};
+use quote::quote;
 use syn::{parse_macro_input, DeriveInput, Ident};
 
 #[proc_macro_derive(FromLua)]
@@ -104,17 +104,10 @@ pub fn functions_and_commands(input: TokenStream) -> TokenStream {
 
     quote! {
         #[derive(strum_macros::VariantNames, strum_macros::EnumString, strum_macros::Display, strum_macros::EnumIter)]
-        #[strum(serialize_all = "lowercase")]
+        #[strum(serialize_all = "snake_case")]
         pub enum CommandNames {
             #(#external),*
         }
     }
     .into()
-}
-
-#[proc_macro]
-pub fn to_lowercase(input: TokenStream) -> TokenStream {
-    Ident::new(&input.to_string().to_lowercase(), Span::call_site())
-        .into_token_stream()
-        .into()
 }

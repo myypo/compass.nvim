@@ -10,7 +10,7 @@ use nvim_oxi::api::Buffer;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, FromLua)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum GotoOptions {
     Relative(RelativeOptions),
     Absolute(AbsoluteOptions),
