@@ -65,6 +65,15 @@ impl From<(usize, usize)> for CursorPosition {
     }
 }
 
+impl From<&mut CursorPosition> for CursorRange {
+    fn from(value: &mut CursorPosition) -> Self {
+        Self {
+            line: value.line.saturating_sub(1),
+            col: value.col,
+        }
+    }
+}
+
 impl From<&CursorPosition> for CursorRange {
     fn from(value: &CursorPosition) -> Self {
         Self {

@@ -48,7 +48,7 @@ pub fn init() -> Result<Dictionary> {
     let follow = get_follow(tracker.clone());
     dict.insert("follow", Function::<_, Result<_>>::from_fn(follow));
 
-    // Setting up `Compass COMMAND` user-comands
+    // Setting up `Compass COMMAND` user-commands
     user_commands(tracker)?;
 
     Ok(dict)

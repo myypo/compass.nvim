@@ -7,7 +7,7 @@ use opts::*;
 use crate::{
     common_types::CursorPosition,
     config::{get_config, WindowGridSize},
-    state::{Record, SyncTracker, TrackList, Tracker},
+    state::{Mark, Record, SyncTracker, TrackList, Tracker},
     ui::{
         grid::{open_grid, GridLayout},
         tab::{close_tab, open_tab},
@@ -16,7 +16,7 @@ use crate::{
 };
 use std::collections::HashSet;
 
-use nvim_oxi::api::{set_current_buf, Buffer};
+use nvim_oxi::api::Buffer;
 
 pub fn get_open(tracker: SyncTracker) -> impl Fn(Option<OpenOptions>) -> Result<()> {
     move |opts: Option<OpenOptions>| {
@@ -67,31 +67,31 @@ pub fn get_unique_bufs_priority(
     track_list: &mut TrackList<Record>,
 ) -> Result<Vec<&Record>> {
     let mut seen_bufs = HashSet::<Buffer>::with_capacity(max_windows.into());
-    let mut record_list = Vec::<&Record>::with_capacity(max_windows.into());
+    let mut idx_record_list = Vec::<usize>::with_capacity(max_windows.into());
 
     open_tab()?;
 
     let frecency_list = track_list.frecency();
-    for r in frecency_list.iter() {
+    for (i, r) in frecency_list.iter() {
         if seen_bufs.insert(r.buf.clone()) {
-            set_current_buf(&r.buf)?;
-            record_list.push(r);
+            r.open_buf()?;
+            idx_record_list.push(*i);
 
-            if record_list.len() >= max_windows.into() {
+            if idx_record_list.len() >= max_windows.into() {
                 break;
             }
         }
     }
 
-    if record_list.len() < max_windows.into() {
+    if idx_record_list.len() < max_windows.into() {
         let frecency_list = track_list.frecency();
-        for r in frecency_list.iter() {
-            if !record_list.iter().any(|&col_rec| col_rec == *r) {
-                set_current_buf(&r.buf)?;
-                record_list.push(r);
+        for (i, r) in frecency_list.iter() {
+            if idx_record_list.iter().all(|&col_idx| col_idx != *i) {
+                r.open_buf()?;
+                idx_record_list.push(*i);
             }
 
-            if record_list.len() >= max_windows.into() {
+            if idx_record_list.len() >= max_windows.into() {
                 break;
             }
         }
@@ -99,7 +99,21 @@ pub fn get_unique_bufs_priority(
 
     close_tab()?;
 
-    Ok(record_list)
+    for i in &idx_record_list {
+        if let Some(r) = track_list.get_mut(*i) {
+            r.load_extmark()?;
+        }
+    }
+
+    Ok({
+        let mut records = Vec::with_capacity(idx_record_list.len());
+        for i in idx_record_list {
+            if let Some(r) = track_list.get(i) {
+                records.push(r);
+            }
+        }
+        records
+    })
 }
 
 mod tests {

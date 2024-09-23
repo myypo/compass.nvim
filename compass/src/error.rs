@@ -34,7 +34,7 @@ pub enum InputError {
     #[error("provided string can't be parsed to a bool: {0}")]
     Bool(#[from] std::str::ParseBoolError),
 
-    #[error("no records satistying the action were found: {0}")]
+    #[error("no records satisfying the action were found: {0}")]
     NoRecords(String),
 
     #[error("{0}")]

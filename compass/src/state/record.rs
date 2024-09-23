@@ -116,7 +116,7 @@ impl Record {
         })
     }
 
-    pub fn get_or_init_extmark(&mut self) -> Result<Extmark> {
+    fn get_or_init_extmark(&mut self) -> Result<Extmark> {
         Ok(match &self.lazy_extmark {
             LazyExtmark::Loaded(e) => e.clone(),
             LazyExtmark::Unloaded((p, t)) => {
@@ -188,12 +188,13 @@ impl Record {
         command("normal! m'")?;
 
         let CursorPosition { line, col } = self.get_or_init_extmark()?.pos(self.buf.clone());
+        self.open_buf()?;
         win.set_cursor(line, col)?;
 
         Ok(())
     }
 
-    pub fn goto(&mut self, win: Window, place_type: FrecencyType) -> Result<()> {
+    pub(in crate::state) fn goto(&mut self, win: Window, place_type: FrecencyType) -> Result<()> {
         self.jump(win)?;
 
         self.frecency.add_record(place_type);
@@ -201,7 +202,7 @@ impl Record {
         Ok(())
     }
 
-    pub fn pop(&mut self, win: Window) -> Result<()> {
+    pub(in crate::state) fn pop(&mut self, win: Window) -> Result<()> {
         self.jump(win)?;
         self.get_or_init_extmark()?.delete(self.buf.clone())?;
 
@@ -264,6 +265,25 @@ impl Mark for Record {
             }
 
             LazyExtmark::Loaded(_) => Ok(()),
+        }
+    }
+
+    fn sync_extmark(&mut self, time: RecordMarkTime) -> Result<()> {
+        match &mut self.lazy_extmark {
+            LazyExtmark::Unloaded((_, t)) => {
+                *t = time;
+                Ok(())
+            }
+            LazyExtmark::Inactive((p, t, _)) => {
+                let extmark =
+                    create_record_mark(self.buf.clone(), &Into::<CursorRange>::into(p), *t)?;
+                self.lazy_extmark = LazyExtmark::Loaded(extmark.clone());
+
+                Ok(())
+            }
+            LazyExtmark::Loaded(e) => {
+                update_record_mark(e, self.buf.clone(), &e.get_range(self.buf.clone()), time)
+            }
         }
     }
 

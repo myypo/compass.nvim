@@ -1,10 +1,16 @@
-use super::{load_session, record::LazyExtmark, save_session, track_list::Mark, Session, Tick};
+use super::{
+    frecency::FrecencyType, load_session, record::LazyExtmark, save_session, track_list::Mark,
+    Session, Tick,
+};
 use crate::{
     common_types::CursorPosition,
     config::get_config,
     state::{ChangeTypeRecord, PlaceTypeRecord, Record, TrackList},
-    ui::{namespace::get_namespace, record_mark::RecordMarkTime},
-    Result,
+    ui::{
+        namespace::get_namespace,
+        record_mark::{recreate_mark_time, RecordMarkTime},
+    },
+    InputError, Result,
 };
 use std::{
     path::Path,
@@ -14,7 +20,7 @@ use std::{
 
 use anyhow::anyhow;
 use nvim_oxi::api::{
-    get_current_buf, get_current_win, get_mode, get_option_value, list_wins,
+    get_current_buf, get_current_win, get_mode, get_option_value,
     opts::{GetExtmarksOpts, OptionOpts, OptionScope},
     types::{ExtmarkPosition, GotMode, Mode},
     Buffer,
@@ -30,6 +36,13 @@ pub struct Tracker {
 fn is_initial_tick(tick: Tick) -> bool {
     const INITIAL_CHANGEDTICK: i32 = 2;
     tick == INITIAL_CHANGEDTICK.into()
+}
+
+fn in_insert_mode() -> bool {
+    let Ok(GotMode { mode, .. }) = get_mode() else {
+        return true;
+    };
+    matches!(mode, Mode::Insert)
 }
 
 impl Tracker {
@@ -64,12 +77,9 @@ impl Tracker {
     }
 
     fn track(&mut self, buf_new: Buffer) -> Result<()> {
-        let Ok(GotMode {
-            mode: Mode::Normal, ..
-        }) = get_mode()
-        else {
+        if in_insert_mode() {
             return Ok(());
-        };
+        }
 
         let conf = get_config();
         if conf.tracker.ignored_patterns.is_match(buf_new.get_name()?) {
@@ -123,25 +133,39 @@ impl Tracker {
         let win = get_current_win();
         let pos_new: CursorPosition = win.get_cursor()?.into();
 
-        if let Some((i, nearby_record)) = self.list.iter_mut_from_future().enumerate().find(
-            |(
-                _,
-                Record {
-                    buf, lazy_extmark, ..
-                },
-            )| {
+        if let Some(i) = self.list.iter_from_future().position(
+            |Record {
+                 buf, lazy_extmark, ..
+             }| {
                 buf_new == *buf && { lazy_extmark.pos(buf_new.clone()).is_nearby(&pos_new) }
             },
         ) {
-            nearby_record.deact_update(buf_new, tick_new, pos_new, RecordMarkTime::PastClose)?;
+            self.activate_all()?;
+            if let Some(nearby_record) = self.list.get_mut(i) {
+                nearby_record.deact_update(
+                    buf_new,
+                    tick_new,
+                    pos_new,
+                    RecordMarkTime::PastClose,
+                )?;
+            }
+            self.list.make_close_past_inactive(i);
 
-            self.list.make_close_past(i);
             return Ok(());
         };
 
+        self.activate_all()?;
         let record_new = Record::try_new_inactive(buf_new, tick_new, pos_new)?;
+        self.list.push_inactive(record_new);
 
-        self.list.push(record_new);
+        Ok(())
+    }
+
+    pub fn activate_all(&mut self) -> Result<()> {
+        let pos = self.list.pos;
+        for (i, r) in self.list.iter_mut_from_future().enumerate() {
+            r.sync_extmark(recreate_mark_time(i, pos))?;
+        }
 
         Ok(())
     }
@@ -189,16 +213,59 @@ impl Tracker {
             ExtmarkPosition::ByTuple((9999999999, 9999999999)),
             &GetExtmarksOpts::builder().build(),
         )? {
-            if !self
+            if self
                 .list
                 .iter_from_future()
-                .any(|r| r.buf == buf && Some(id) == r.lazy_extmark.id())
+                .all(|r| !(r.buf == buf && Some(id) == r.lazy_extmark.id()))
             {
                 buf.del_extmark(ns_id, id)?;
             }
         }
 
         Ok(())
+    }
+
+    pub fn step_past(&mut self) -> Result<()> {
+        let Some(record) = self.list.step_past() else {
+            return Ok(());
+        };
+
+        record.goto(get_current_win(), FrecencyType::RelativeGoto)
+    }
+
+    pub fn step_future(&mut self) -> Result<()> {
+        self.activate_all()?;
+        let Some(record) = self.list.step_future() else {
+            return Ok(());
+        };
+        record.goto(get_current_win(), FrecencyType::RelativeGoto)
+    }
+
+    pub fn goto_absolute(&mut self, idx_record: usize) -> Result<()> {
+        self.activate_all()?;
+        let record = self.list.get_mut(idx_record).ok_or_else(|| {
+            InputError::NoRecords(format!(
+                "non-existent index for absolute goto provided: {}",
+                idx_record
+            ))
+        })?;
+        record.goto(get_current_win(), FrecencyType::AbsoluteGoto)
+    }
+
+    pub fn pop_past(&mut self) -> Result<()> {
+        self.activate_all()?;
+        let Some(mut record) = self.list.pop_past() else {
+            return Ok(());
+        };
+        record.pop(get_current_win())
+    }
+
+    pub fn pop_future(&mut self) -> Result<()> {
+        self.activate_all()?;
+        let Some(mut record) = self.list.pop_future() else {
+            return Ok(());
+        };
+        record.pop(get_current_win())
     }
 }
 
@@ -242,15 +309,12 @@ impl SyncTracker {
 
     pub fn activate(&mut self) -> Result<()> {
         let conf = get_config();
-
-        let curr_bufs: Vec<Buffer> = list_wins().filter_map(|w| w.get_buf().ok()).collect();
-
         let list = &mut self.lock()?.list;
-        for r in list.iter_mut_from_future().filter(|r| {
-            curr_bufs.iter().any(|b| b == &r.buf) &&
-            matches!(r.lazy_extmark, LazyExtmark::Inactive((_, _, i)) if i.elapsed() > conf.tracker.debounce_milliseconds.activate)
-        }) {
-            r.load_extmark()?;
+        let pos = list.pos;
+        if !in_insert_mode() && list.iter_from_future().any(|r| matches!(r.lazy_extmark, LazyExtmark::Inactive((_, _, inst)) if inst.elapsed() >= conf.tracker.debounce_milliseconds.activate)) {
+            for (i, r) in list.iter_mut_from_future().enumerate() {
+                r.sync_extmark(recreate_mark_time(i, pos))?;
+            }
         }
 
         Ok(())

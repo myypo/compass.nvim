@@ -3,7 +3,7 @@ use std::{
     iter::Rev,
 };
 
-use crate::{state::frecency::FrecencyScore, Result};
+use crate::{state::frecency::FrecencyScore, ui::record_mark::RecordMarkTime, Result};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TrackList<T> {
@@ -22,6 +22,7 @@ impl<T> Default for TrackList<T> {
 
 pub trait Mark {
     fn load_extmark(&mut self) -> Result<()>;
+    fn sync_extmark(&mut self, time: RecordMarkTime) -> Result<()>;
     fn open_buf(&self) -> Result<()>;
 }
 
@@ -57,6 +58,10 @@ impl<T> TrackList<T> {
         self.ring.iter().rev()
     }
 
+    pub fn get(&self, i: usize) -> Option<&T> {
+        self.ring.get(i)
+    }
+
     pub fn get_mut(&mut self, i: usize) -> Option<&mut T> {
         self.ring.get_mut(i)
     }
@@ -86,7 +91,7 @@ where
         match self.pos {
             Some(p) => {
                 if let Some(old_close) = self.ring.get_mut(p + 1) {
-                    old_close.as_past()
+                    old_close.as_past();
                 };
 
                 self.ring.insert(p + 1, val);
@@ -98,6 +103,13 @@ where
 
                 self.ring.push_front(val);
             }
+        }
+    }
+
+    pub fn push_inactive(&mut self, val: T) {
+        match self.pos {
+            Some(p) => self.ring.insert(p + 1, val),
+            None => self.ring.push_front(val),
         }
     }
 
@@ -241,7 +253,7 @@ where
                             None => self.get_mut(0),
                         } {
                             old_close.as_past();
-                        };
+                        }
 
                         self.ring.swap(idx, p);
 
@@ -288,15 +300,86 @@ where
             }
         }
     }
+
+    pub fn make_close_past_inactive(&mut self, idx: usize) -> Option<()> {
+        if let Some(v) = self.get_mut(idx + 1) {
+            v.as_close_past();
+        }
+        if let Some(p) = self.get_mut(idx + 2) {
+            p.as_past();
+        }
+        if let Some(idx) = idx.checked_sub(1) {
+            if let Some(cf) = self.get_mut(idx) {
+                cf.as_close_future();
+            }
+        }
+        if let Some(idx) = idx.checked_sub(2) {
+            if let Some(f) = self.get_mut(idx) {
+                f.as_future();
+            }
+        }
+
+        if let Some(p) = self.pos {
+            if p + 1 == idx {
+                return Some(());
+            }
+        }
+
+        let len = self.len();
+        if len == 1 {
+            self.pos = None;
+            return Some(());
+        }
+
+        match self.pos {
+            Some(p) => {
+                match idx.ge(&p) {
+                    // past -> close past
+                    true => {
+                        self.ring.swap(idx, p);
+
+                        if p + 1 < idx {
+                            self.ring.make_contiguous()[p..=idx].rotate_right(1);
+                        } else {
+                            self.pos = p.checked_sub(1);
+                        }
+
+                        Some(())
+                    }
+
+                    // future -> close past
+                    false => {
+                        match p.checked_sub(1) {
+                            Some(new_pos) => {
+                                self.pos = Some(new_pos);
+                                self.ring.swap(idx, p);
+                                self.ring.make_contiguous()[idx..=new_pos].rotate_right(1);
+                            }
+                            None => {
+                                self.pos = None;
+                            }
+                        }
+
+                        Some(())
+                    }
+                }
+            }
+            None => {
+                self.ring.make_contiguous()[0..=idx].rotate_right(1);
+
+                Some(())
+            }
+        }
+    }
 }
 
 impl<T> TrackList<T>
 where
     T: FrecencyScore,
 {
-    pub fn frecency(&self) -> Vec<&T> {
-        let mut vec: Vec<&T> = self.ring.iter().collect();
-        vec.sort_by_key(|v| v.total_score());
+    pub fn frecency(&self) -> Vec<(usize, &T)> {
+        let mut vec: Vec<(usize, &T)> = self.ring.iter().enumerate().collect();
+        vec.sort_by_key(|(_, v)| v.total_score());
         vec
     }
 }
@@ -313,28 +396,38 @@ pub trait IndicateCloseness {
 mod tests {
     use super::*;
 
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    struct Num(i32);
-    impl From<i32> for Num {
-        fn from(value: i32) -> Self {
-            Num(value)
+    #[derive(Clone, Copy, Debug)]
+    struct Stub {
+        id: i32,
+    }
+    impl PartialEq for Stub {
+        fn eq(&self, other: &Self) -> bool {
+            self.id == other.id
         }
     }
-    impl IndicateCloseness for Num {
+    impl From<i32> for Stub {
+        fn from(id: i32) -> Self {
+            Stub { id }
+        }
+    }
+    impl IndicateCloseness for Stub {
         fn as_past(&mut self) {}
         fn as_future(&mut self) {}
         fn as_close_past(&mut self) {}
         fn as_close_future(&mut self) {}
     }
-    impl Mark for Num {
+    impl Mark for Stub {
         fn load_extmark(&mut self) -> Result<()> {
+            Ok(())
+        }
+        fn sync_extmark(&mut self, _: RecordMarkTime) -> Result<()> {
             Ok(())
         }
         fn open_buf(&self) -> Result<()> {
             Ok(())
         }
     }
-    impl Active for Num {
+    impl Active for Stub {
         fn is_active(&self) -> bool {
             true
         }
@@ -342,7 +435,7 @@ mod tests {
 
     #[test]
     fn can_go_to_oldest() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into());
         list.push(2.into());
         list.push(3.into());
@@ -364,7 +457,7 @@ mod tests {
 
     #[test]
     fn prevents_out_of_bounds() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into());
         list.push(2.into());
         list.push(3.into());
@@ -395,7 +488,7 @@ mod tests {
 
     #[test]
     fn inserts_to_the_right_when_not_at_start() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into());
         list.push(2.into());
         list.push(3.into());
@@ -407,7 +500,7 @@ mod tests {
 
     #[test]
     fn can_push_when_at_end() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into());
         list.push(2.into());
         list.push(3.into());
@@ -422,7 +515,7 @@ mod tests {
 
     #[test]
     fn does_not_stuck_with_single_element() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into());
 
         assert_eq!(list.step_past().unwrap(), &1.into());
@@ -435,7 +528,7 @@ mod tests {
 
     #[test]
     fn can_make_second_oldest_element_close_past_while_inside() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into());
         list.push(2.into()); // will become close past
         list.push(3.into());
@@ -445,14 +538,14 @@ mod tests {
 
         list.make_close_past(3);
 
-        let want = VecDeque::<Num>::from([5.into(), 2.into(), 4.into(), 3.into(), 1.into()]);
+        let want = VecDeque::<Stub>::from([5.into(), 2.into(), 4.into(), 3.into(), 1.into()]);
         assert_eq!(list.ring, want);
         assert_eq!(list.pos, Some(0));
     }
 
     #[test]
     fn can_make_newest_element_close_past_while_inside_middle() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into());
         list.push(2.into()); // we are here
         list.push(3.into());
@@ -461,14 +554,14 @@ mod tests {
 
         list.make_close_past(0);
 
-        let want = VecDeque::<Num>::from([3.into(), 2.into(), 4.into(), 1.into()]);
+        let want = VecDeque::<Stub>::from([3.into(), 2.into(), 4.into(), 1.into()]);
         assert_eq!(list.ring, want);
         assert_eq!(list.pos, Some(1));
     }
 
     #[test]
     fn can_make_newest_element_close_past_while_inside_middle_next_to() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into());
         list.push(2.into()); // we are here
         list.push(3.into()); // will become close past
@@ -477,14 +570,14 @@ mod tests {
 
         list.make_close_past(1);
 
-        let want = VecDeque::<Num>::from([4.into(), 2.into(), 3.into(), 1.into()]);
+        let want = VecDeque::<Stub>::from([4.into(), 2.into(), 3.into(), 1.into()]);
         assert_eq!(list.ring, want);
         assert_eq!(list.pos, Some(1));
     }
 
     #[test]
     fn can_make_oldest_element_close_past_while_inside() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into()); // will become close past
         list.push(2.into());
         list.push(3.into());
@@ -494,14 +587,14 @@ mod tests {
 
         list.make_close_past(4);
 
-        let want = VecDeque::<Num>::from([5.into(), 1.into(), 4.into(), 3.into(), 2.into()]);
+        let want = VecDeque::<Stub>::from([5.into(), 1.into(), 4.into(), 3.into(), 2.into()]);
         assert_eq!(list.ring, want);
         assert_eq!(list.pos, Some(0));
     }
 
     #[test]
     fn can_make_middle_element_close_past_while_outside() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into());
         list.push(2.into());
         list.push(3.into()); // will become close past
@@ -512,14 +605,14 @@ mod tests {
 
         list.make_close_past(2);
 
-        let want = VecDeque::<Num>::from([3.into(), 5.into(), 4.into(), 2.into(), 1.into()]);
+        let want = VecDeque::<Stub>::from([3.into(), 5.into(), 4.into(), 2.into(), 1.into()]);
         assert_eq!(list.ring, want);
         assert_eq!(list.pos, None);
     }
 
     #[test]
     fn can_make_second_element_close_past_while_outside() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into());
         list.push(2.into());
         list.push(3.into());
@@ -530,14 +623,14 @@ mod tests {
 
         list.make_close_past(1);
 
-        let want = VecDeque::<Num>::from([4.into(), 5.into(), 3.into(), 2.into(), 1.into()]);
+        let want = VecDeque::<Stub>::from([4.into(), 5.into(), 3.into(), 2.into(), 1.into()]);
         assert_eq!(list.ring, want);
         assert_eq!(list.pos, None);
     }
 
     #[test]
     fn can_make_fourth_element_close_past_while_outside() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into());
         list.push(2.into()); // will become close past
         list.push(3.into());
@@ -548,14 +641,14 @@ mod tests {
 
         list.make_close_past(3);
 
-        let want = VecDeque::<Num>::from([2.into(), 5.into(), 4.into(), 3.into(), 1.into()]);
+        let want = VecDeque::<Stub>::from([2.into(), 5.into(), 4.into(), 3.into(), 1.into()]);
         assert_eq!(list.ring, want);
         assert_eq!(list.pos, None);
     }
 
     #[test]
     fn can_make_last_elem_of_two_close_past_while_outside() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into()); // will become close past
         list.push(2.into());
         // we are here
@@ -563,14 +656,14 @@ mod tests {
 
         list.make_close_past(1);
 
-        let want = VecDeque::<Num>::from([1.into(), 2.into()]);
+        let want = VecDeque::<Stub>::from([1.into(), 2.into()]);
         assert_eq!(list.ring, want);
         assert_eq!(list.pos, None);
     }
 
     #[test]
     fn can_make_first_elem_of_two_close_past_while_outside() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into());
         list.push(2.into()); // will become close past (already is)
                              // we are here
@@ -578,35 +671,35 @@ mod tests {
 
         list.make_close_past(0);
 
-        let want = VecDeque::<Num>::from([2.into(), 1.into()]);
+        let want = VecDeque::<Stub>::from([2.into(), 1.into()]);
         assert_eq!(list.ring, want);
         assert_eq!(list.pos, None);
     }
 
     #[test]
     fn can_make_last_elem_of_two_close_past_while_inside_it() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into()); // we are here and it will become close past
         list.push(2.into());
         list.pos = Some(1);
 
         list.make_close_past(1);
 
-        let want = VecDeque::<Num>::from([2.into(), 1.into()]);
+        let want = VecDeque::<Stub>::from([2.into(), 1.into()]);
         assert_eq!(list.ring, want);
         assert_eq!(list.pos, Some(0));
     }
 
     #[test]
     fn can_make_first_elem_of_two_close_past_while_inside_it() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into());
         list.push(2.into()); // we are here and it will become close past
         list.pos = Some(0);
 
         list.make_close_past(0);
 
-        let want = VecDeque::<Num>::from([2.into(), 1.into()]);
+        let want = VecDeque::<Stub>::from([2.into(), 1.into()]);
         assert_eq!(list.ring, want);
         assert_eq!(list.pos, None);
 
@@ -617,14 +710,14 @@ mod tests {
 
         list.make_close_past(1);
 
-        let want = VecDeque::<Num>::from([1.into(), 2.into()]);
+        let want = VecDeque::<Stub>::from([1.into(), 2.into()]);
         assert_eq!(list.ring, want);
         assert_eq!(list.pos, None);
     }
 
     #[test]
     fn can_make_last_elem_close_past_while_outside() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into()); // will become close past
         list.push(2.into());
         list.push(3.into());
@@ -634,14 +727,14 @@ mod tests {
 
         list.make_close_past(3);
 
-        let want = VecDeque::<Num>::from([1.into(), 4.into(), 3.into(), 2.into()]);
+        let want = VecDeque::<Stub>::from([1.into(), 4.into(), 3.into(), 2.into()]);
         assert_eq!(list.ring, want);
         assert_eq!(list.pos, None);
     }
 
     #[test]
     fn can_make_first_elem_close_past_while_outside() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into());
         list.push(2.into());
         list.push(3.into()); // will become close past (it already is)
@@ -650,33 +743,33 @@ mod tests {
 
         list.make_close_past(0);
 
-        let want = VecDeque::<Num>::from([3.into(), 2.into(), 1.into()]);
+        let want = VecDeque::<Stub>::from([3.into(), 2.into(), 1.into()]);
         assert_eq!(list.ring, want);
         assert_eq!(list.pos, None);
     }
 
     #[test]
     fn can_make_single_elem_close_past() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into());
         list.pos = Some(0);
         list.make_close_past(0);
-        let want = VecDeque::<Num>::from([1.into()]);
+        let want = VecDeque::<Stub>::from([1.into()]);
         assert_eq!(list.ring, want);
         assert_eq!(list.pos, None);
 
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into());
         list.pos = None;
         list.make_close_past(0);
-        let want = VecDeque::<Num>::from([1.into()]);
+        let want = VecDeque::<Stub>::from([1.into()]);
         assert_eq!(list.ring, want);
         assert_eq!(list.pos, None);
     }
 
     #[test]
     fn make_close_past_does_not_get_stuck() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         // we are here
         list.push(1.into());
         list.push(2.into());
@@ -686,29 +779,29 @@ mod tests {
 
         list.make_close_past(1);
 
-        let want = VecDeque::<Num>::from([4.into(), 2.into(), 1.into(), 3.into()]);
+        let want = VecDeque::<Stub>::from([4.into(), 2.into(), 1.into(), 3.into()]);
         assert_eq!(list.ring, want);
         assert_eq!(list.pos, Some(2));
     }
 
     #[test]
     fn make_close_past_last_among_two_when_in_middle() {
-        let mut list = TrackList::<Num>::default();
+        let mut list = TrackList::<Stub>::default();
         list.push(1.into()); // will become close past
-        list.push(2.into());
+        list.push(2.into()); // we are here
         list.pos = Some(0);
 
         list.make_close_past(1);
 
-        let want = VecDeque::<Num>::from([2.into(), 1.into()]);
+        let want = VecDeque::<Stub>::from([2.into(), 1.into()]);
         assert_eq!(list.ring, want);
         assert_eq!(list.pos, Some(0));
     }
 
     #[test]
     fn pop_past_when_outside() {
-        let mut list = TrackList::<Num>::default();
-        let popped: Num = 3.into();
+        let mut list = TrackList::<Stub>::default();
+        let popped: Stub = 3.into();
         list.push(1.into());
         list.push(2.into());
         list.push(popped);
@@ -720,8 +813,8 @@ mod tests {
 
     #[test]
     fn pop_past_when_inside() {
-        let mut list = TrackList::<Num>::default();
-        let popped: Num = 1.into();
+        let mut list = TrackList::<Stub>::default();
+        let popped: Stub = 1.into();
         list.push(popped);
         list.push(2.into()); // we are here
         list.push(3.into());
@@ -732,8 +825,8 @@ mod tests {
 
     #[test]
     fn pop_future_when_outside_get_nothing() {
-        let mut list = TrackList::<Num>::default();
-        let popped: Num = 3.into();
+        let mut list = TrackList::<Stub>::default();
+        let popped: Stub = 3.into();
         list.push(1.into());
         list.push(2.into());
         list.push(popped);
@@ -746,8 +839,8 @@ mod tests {
 
     #[test]
     fn pop_future_when_inside() {
-        let mut list = TrackList::<Num>::default();
-        let popped: Num = 2.into();
+        let mut list = TrackList::<Stub>::default();
+        let popped: Stub = 2.into();
         list.push(1.into());
         list.push(popped); // we are here
         list.push(3.into());
@@ -759,8 +852,8 @@ mod tests {
 
     #[test]
     fn pop_future_when_in_end() {
-        let mut list = TrackList::<Num>::default();
-        let popped: Num = 1.into();
+        let mut list = TrackList::<Stub>::default();
+        let popped: Stub = 1.into();
         list.push(popped); // we are here
         list.push(2.into());
         list.push(3.into());
@@ -772,8 +865,8 @@ mod tests {
 
     #[test]
     fn pop_future_when_at_start() {
-        let mut list = TrackList::<Num>::default();
-        let popped: Num = 3.into();
+        let mut list = TrackList::<Stub>::default();
+        let popped: Stub = 3.into();
         list.push(1.into());
         list.push(2.into());
         list.push(popped); // we are here

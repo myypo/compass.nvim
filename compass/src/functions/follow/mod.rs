@@ -7,20 +7,20 @@ use opts::*;
 use crate::{
     config::{get_config, JumpKeymap, WindowGridSize},
     functions::open::get_unique_bufs_priority,
-    state::{frecency::FrecencyType, Record, SyncTracker, TrackList},
+    state::{Record, SyncTracker, TrackList},
     ui::grid::{open_grid, GridLayout},
     InputError, Result,
 };
 
 use anyhow::anyhow;
-use nvim_oxi::api::{get_current_win, set_current_buf, Buffer};
+use nvim_oxi::api::Buffer;
 
 pub fn get_follow(tracker: SyncTracker) -> impl Fn(Option<FollowOptions>) -> Result<()> {
     move |opts: Option<FollowOptions>| {
         let opts = opts.unwrap_or_default();
 
-        let list = &mut tracker.lock()?.list;
-        if list.is_empty() {
+        let tracker = &mut tracker.lock()?;
+        if tracker.list.is_empty() {
             return Err(InputError::NoRecords("record list is empty".to_owned()))?;
         }
 
@@ -30,17 +30,21 @@ pub fn get_follow(tracker: SyncTracker) -> impl Fn(Option<FollowOptions>) -> Res
                 max_windows,
             }) => {
                 {
-                    let mut records_iter = list.iter_mut_from_future().filter(|r| r.buf == target);
+                    let mut records_iter = tracker
+                        .list
+                        .iter_from_future()
+                        .enumerate()
+                        .filter(|(_, r)| r.buf == target);
 
-                    if let Some(only) = records_iter.next() {
+                    if let Some((i, _)) = records_iter.next() {
                         if records_iter.next().is_none() {
-                            set_current_buf(&only.buf)?;
-                            return only.goto(get_current_win(), FrecencyType::AbsoluteGoto);
+                            return tracker.goto_absolute(i);
                         };
                     };
                 };
 
-                let (record_vec, jump_keymaps) = follow_buf(target, list, max_windows)?;
+                let (record_vec, jump_keymaps) =
+                    follow_buf(target, &mut tracker.list, max_windows)?;
 
                 open_grid(
                     &record_vec,
