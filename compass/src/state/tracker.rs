@@ -262,19 +262,19 @@ impl Tracker {
     }
 
     pub fn pop_past(&mut self) -> Result<()> {
-        self.activate_all()?;
         let Some(mut record) = self.list.pop_past() else {
             return Ok(());
         };
-        record.pop(get_current_win())
+        record.pop(get_current_win())?;
+        self.activate_all()
     }
 
     pub fn pop_future(&mut self) -> Result<()> {
-        self.activate_all()?;
         let Some(mut record) = self.list.pop_future() else {
             return Ok(());
         };
-        record.pop(get_current_win())
+        record.pop(get_current_win())?;
+        self.activate_all()
     }
 }
 

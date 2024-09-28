@@ -34,9 +34,9 @@ impl<'a> TryFrom<CompassArgs<'a>> for PopOptions {
 
     fn try_from(value: CompassArgs) -> Result<Self> {
         let Some(&sub) = value.sub_cmds.first() else {
-            Err(InputError::FunctionArguments(
+            return Err(InputError::FunctionArguments(
                 "no `pop` subcommand provided".to_owned(),
-            ))?
+            ))?;
         };
 
         match sub {
