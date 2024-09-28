@@ -28,9 +28,9 @@ use nvim_oxi::api::{
 
 pub struct Tracker {
     pub list: TrackList<Record>,
-    last_flush: std::time::Instant,
-
+    latest_flush: std::time::Instant,
     renewed_bufs: Vec<Buffer>,
+    latest_change: Option<(Buffer, Tick)>,
 }
 
 fn is_initial_tick(tick: Tick) -> bool {
@@ -38,18 +38,11 @@ fn is_initial_tick(tick: Tick) -> bool {
     tick == INITIAL_CHANGEDTICK.into()
 }
 
-fn in_insert_mode() -> bool {
-    let Ok(GotMode { mode, .. }) = get_mode() else {
-        return true;
-    };
-    matches!(mode, Mode::Insert)
-}
-
 impl Tracker {
     fn persist_state(&mut self, path: &Path) -> Result<()> {
-        if self.last_flush.elapsed() >= Duration::from_secs(5) {
+        if self.latest_flush.elapsed() >= Duration::from_secs(5) {
             save_session(Session::try_from(&self.list)?, path)?;
-            self.last_flush = Instant::now();
+            self.latest_flush = Instant::now();
         }
 
         Ok(())
@@ -77,21 +70,24 @@ impl Tracker {
     }
 
     fn track(&mut self, buf_new: Buffer) -> Result<()> {
-        if in_insert_mode() {
+        if let Ok(GotMode { mode, .. }) = get_mode() {
+            match mode {
+                Mode::CmdLine | Mode::InsertCmdLine | Mode::Terminal => {
+                    // Reset it to avoid placing marks on %s and other changing commands
+                    self.latest_change = None;
+                    return Ok(());
+                }
+                Mode::Insert => {
+                    return Ok(());
+                }
+                _ => {}
+            }
+        } else {
             return Ok(());
         }
 
         let conf = get_config();
         if conf.tracker.ignored_patterns.is_match(buf_new.get_name()?) {
-            return Ok(());
-        }
-
-        let modified: bool = get_option_value(
-            "modified",
-            &OptionOpts::builder().scope(OptionScope::Local).build(),
-        )
-        .unwrap_or(true);
-        if !modified {
             return Ok(());
         }
 
@@ -111,19 +107,32 @@ impl Tracker {
             else {
                 return Ok(());
             };
+
+            // Ignore the first change in the buffer we just moved
+            // to make sure we do not place a mark for a non-interactive change
+            if let Some((latest_buf, latest_tick)) = &self.latest_change {
+                if *latest_buf != buf_new {
+                    self.latest_change = Some((buf_new, tick_new));
+                    return Ok(());
+                }
+                if *latest_tick == tick_new {
+                    return Ok(());
+                }
+            } else {
+                self.latest_change = Some((buf_new, tick_new));
+                return Ok(());
+            }
+
             if is_initial_tick(tick_new) {
                 return Ok(());
-            };
-            if !self.list.iter_from_future().all(
-                |Record {
-                     buf, place_type, ..
-                 }| {
-                    (match place_type {
-                        PlaceTypeRecord::Change(ChangeTypeRecord::Tick(t)) => tick_new != *t,
-                        _ => true,
-                    }) || buf_new != *buf
-                },
-            ) {
+            }
+            if self.list.iter_from_future().any(|r| {
+                r.buf == buf_new
+                    && matches!(
+                        r.place_type,
+                        PlaceTypeRecord::Change(ChangeTypeRecord::Tick(t)) if t == tick_new
+                    )
+            }) {
                 return Ok(());
             }
 
@@ -273,8 +282,9 @@ impl Default for Tracker {
     fn default() -> Self {
         Self {
             list: TrackList::default(),
-            last_flush: Instant::now(),
+            latest_flush: Instant::now(),
             renewed_bufs: Vec::default(),
+            latest_change: None,
         }
     }
 }
@@ -308,6 +318,13 @@ impl SyncTracker {
     }
 
     pub fn activate(&mut self) -> Result<()> {
+        fn in_insert_mode() -> bool {
+            let Ok(GotMode { mode, .. }) = get_mode() else {
+                return true;
+            };
+            matches!(mode, Mode::Insert)
+        }
+
         let conf = get_config();
         let list = &mut self.lock()?.list;
         let pos = list.pos;
