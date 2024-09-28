@@ -1,3 +1,5 @@
+use std::{fmt::Debug, sync::PoisonError};
+
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -12,6 +14,15 @@ pub enum Error {
 
     #[error("internal compass.nvim error: {0}")]
     Internal(#[from] anyhow::Error),
+}
+
+impl<T> From<PoisonError<T>> for Error
+where
+    T: Debug,
+{
+    fn from(err: PoisonError<T>) -> Self {
+        Error::Internal(anyhow::Error::msg(format!("{:?}", err)))
+    }
 }
 
 #[derive(Error, Debug)]

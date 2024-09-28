@@ -8,11 +8,11 @@ use crate::{
         setup::get_setup,
         CommandNames,
     },
-    state::SyncTracker,
+    state::Tracker,
     viml::CompassArgs,
     InputError, Result,
 };
-use std::str::FromStr;
+use std::{str::FromStr, sync::Mutex};
 
 use nvim_oxi::{
     api::{
@@ -30,22 +30,22 @@ use strum::VariantNames;
 pub fn init() -> Result<Dictionary> {
     let mut dict = Dictionary::new();
 
-    let tracker = SyncTracker::default();
+    let tracker = Box::leak(Box::new(Mutex::new(Tracker::default())));
 
     // Attaching plugin-defined functions to the lua table
-    let setup = get_setup(tracker.clone());
+    let setup = get_setup(tracker);
     dict.insert("setup", Function::<_, Result<_>>::from_fn_once(setup));
 
-    let open = get_open(tracker.clone());
+    let open = get_open(tracker);
     dict.insert("open", Function::<_, Result<_>>::from_fn(open));
 
-    let goto = get_goto(tracker.clone());
+    let goto = get_goto(tracker);
     dict.insert("goto", Function::<_, Result<_>>::from_fn(goto));
 
-    let pop = get_pop(tracker.clone());
+    let pop = get_pop(tracker);
     dict.insert("pop", Function::<_, Result<_>>::from_fn(pop));
 
-    let follow = get_follow(tracker.clone());
+    let follow = get_follow(tracker);
     dict.insert("follow", Function::<_, Result<_>>::from_fn(follow));
 
     // Setting up `Compass COMMAND` user-commands
@@ -54,11 +54,11 @@ pub fn init() -> Result<Dictionary> {
     Ok(dict)
 }
 
-fn user_commands(tracker: SyncTracker) -> Result<()> {
-    let goto = get_goto(tracker.clone());
-    let pop = get_pop(tracker.clone());
-    let open = get_open(tracker.clone());
-    let place = get_place(tracker.clone());
+fn user_commands(tracker: &'static Mutex<Tracker>) -> Result<()> {
+    let goto = get_goto(tracker);
+    let pop = get_pop(tracker);
+    let open = get_open(tracker);
+    let place = get_place(tracker);
     let follow = get_follow(tracker);
 
     let subcommands = move |ca: CommandArgs| -> Result<()> {

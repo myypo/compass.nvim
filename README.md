@@ -121,7 +121,6 @@ Default configuration:
 
     -- Customization of the tracker automatically placing plugin marks on file edits etc.
     tracker = {
-        enable = true,
         -- How often to perform background actions specified in milliseconds
         -- Might end up waiting for longer than the provided value
         debounce_milliseconds = {

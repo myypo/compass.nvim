@@ -1,12 +1,14 @@
 mod completion;
+use std::sync::Mutex;
+
 pub use completion::*;
 
 mod opts;
 use opts::*;
 
-use crate::{common_types::Direction, state::SyncTracker, InputError, Result};
+use crate::{common_types::Direction, state::Tracker, InputError, Result};
 
-pub fn get_goto(tracker: SyncTracker) -> impl Fn(Option<GotoOptions>) -> Result<()> {
+pub fn get_goto(tracker: &'static Mutex<Tracker>) -> impl Fn(Option<GotoOptions>) -> Result<()> {
     move |opts: Option<GotoOptions>| {
         let opts = opts.unwrap_or_default();
 

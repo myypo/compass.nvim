@@ -2,12 +2,12 @@ use anyhow::anyhow;
 use nvim_oxi::api::{notify, opts::NotifyOpts, types::LogLevel};
 
 use crate::{config::get_config, Result};
-use std::time::Instant;
+use std::{sync::Mutex, time::Instant};
 
-use super::SyncTracker;
+use super::Tracker;
 
 pub struct Worker {
-    pub tracker: Option<SyncTracker>,
+    pub tracker: &'static Mutex<Tracker>,
 }
 
 macro_rules! min {
@@ -16,11 +16,11 @@ macro_rules! min {
 }
 
 impl Worker {
-    pub fn new(tracker: Option<SyncTracker>) -> Self {
+    pub fn new(tracker: &'static Mutex<Tracker>) -> Self {
         Self { tracker }
     }
 
-    pub fn run_jobs(mut self) {
+    pub fn run_jobs(self) {
         std::thread::spawn(move || {
             let (debounce, persistence) = {
                 let conf = &get_config();
@@ -34,38 +34,31 @@ impl Worker {
 
             let mut jobs = || -> Result<()> {
                 let now = Instant::now();
+                let mut tracker = self.tracker.lock()?;
 
                 if now.duration_since(run_inst) >= debounce.run {
-                    if let Some(tracker) = &mut self.tracker {
-                        tracker.run()?;
-                    };
+                    tracker.track()?;
                     run_inst = now;
                 }
 
                 if now.duration_since(maint_inst) >= debounce.maintenance {
-                    if let Some(tracker) = &mut self.tracker {
-                        tracker.maintain()?;
-                    };
+                    tracker.maintain()?;
                     maint_inst = now;
                 }
 
                 if persistence.enable
                     && now.duration_since(persist_inst) >= persistence.interval_milliseconds
                 {
-                    if let Some(tracker) = &mut self.tracker {
-                        let path = persistence.path.as_ref().ok_or_else(|| {
-                            anyhow!(
+                    let path = persistence.path.as_ref().ok_or_else(|| {
+                        anyhow!(
                     "changes tracker persistence enabled yet no specified save state path found"
                 )
-                        })?;
-                        tracker.persist_state(path)?;
-                    };
+                    })?;
+                    tracker.persist_state(path)?;
                     persist_inst = now;
                 }
 
-                if let Some(tracker) = &mut self.tracker {
-                    tracker.activate()?;
-                };
+                tracker.activate(debounce.activate)?;
 
                 Ok(())
             };

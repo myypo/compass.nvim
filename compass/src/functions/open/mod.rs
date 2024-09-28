@@ -7,18 +7,18 @@ use opts::*;
 use crate::{
     common_types::CursorPosition,
     config::{get_config, WindowGridSize},
-    state::{Mark, Record, SyncTracker, TrackList, Tracker},
+    state::{Mark, Record, TrackList, Tracker},
     ui::{
         grid::{open_grid, GridLayout},
         tab::{close_tab, open_tab},
     },
     InputError, Result,
 };
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Mutex};
 
 use nvim_oxi::api::Buffer;
 
-pub fn get_open(tracker: SyncTracker) -> impl Fn(Option<OpenOptions>) -> Result<()> {
+pub fn get_open(tracker: &'static Mutex<Tracker>) -> impl Fn(Option<OpenOptions>) -> Result<()> {
     move |opts: Option<OpenOptions>| {
         let OpenOptions {
             record_types,
@@ -117,6 +117,8 @@ pub fn get_unique_bufs_priority(
 }
 
 mod tests {
+    use std::sync::Mutex;
+
     use crate::state::{ChangeTypeRecord, PlaceTypeRecord};
 
     use super::*;
@@ -125,9 +127,8 @@ mod tests {
 
     #[nvim_oxi::test]
     fn can_open_picker_with_empty_args() {
-        let sync_tracker = SyncTracker::default();
-        let mut tracker = sync_tracker.lock().unwrap();
-        tracker.list.push(
+        let tracker = Box::leak(Box::new(Mutex::new(Tracker::default())));
+        tracker.get_mut().unwrap().list.push(
             Record::try_new(
                 Buffer::current(),
                 PlaceTypeRecord::Change(ChangeTypeRecord::Tick(42.into())),
@@ -135,18 +136,15 @@ mod tests {
             )
             .unwrap(),
         );
-        let open = get_open(sync_tracker.clone());
-
-        drop(tracker);
+        let open = get_open(tracker);
 
         open(None).unwrap();
     }
 
     #[nvim_oxi::test]
     fn can_open_picker_with_all_args() {
-        let sync_tracker = SyncTracker::default();
-        let mut tracker = sync_tracker.lock().unwrap();
-        tracker.list.push(
+        let tracker = Box::leak(Box::new(Mutex::new(Tracker::default())));
+        tracker.get_mut().unwrap().list.push(
             Record::try_new(
                 Buffer::current(),
                 PlaceTypeRecord::Change(ChangeTypeRecord::Tick(42.into())),
@@ -154,9 +152,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let open = get_open(sync_tracker.clone());
-
-        drop(tracker);
+        let open = get_open(tracker);
 
         open(Some(OpenOptions {
             record_types: Some(vec![RecordFilter::Change]),

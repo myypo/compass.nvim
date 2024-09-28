@@ -14,11 +14,9 @@ use crate::{
 };
 use std::{
     path::Path,
-    sync::{Arc, Mutex, MutexGuard},
     time::{Duration, Instant},
 };
 
-use anyhow::anyhow;
 use nvim_oxi::api::{
     get_current_buf, get_current_win, get_mode, get_option_value,
     opts::{GetExtmarksOpts, OptionOpts, OptionScope},
@@ -26,6 +24,7 @@ use nvim_oxi::api::{
     Buffer,
 };
 
+#[derive(Debug)]
 pub struct Tracker {
     pub list: TrackList<Record>,
     latest_flush: std::time::Instant,
@@ -39,7 +38,7 @@ fn is_initial_tick(tick: Tick) -> bool {
 }
 
 impl Tracker {
-    fn persist_state(&mut self, path: &Path) -> Result<()> {
+    pub fn persist_state(&mut self, path: &Path) -> Result<()> {
         if self.latest_flush.elapsed() >= Duration::from_secs(5) {
             save_session(Session::try_from(&self.list)?, path)?;
             self.latest_flush = Instant::now();
@@ -69,7 +68,12 @@ impl Tracker {
         Ok(())
     }
 
-    fn track(&mut self, buf_new: Buffer) -> Result<()> {
+    pub fn track(&mut self) -> Result<()> {
+        let buf_new = get_current_buf();
+        if get_config().persistence.enable {
+            self.renew_buf_record_marks(buf_new.clone())?;
+        }
+
         if let Ok(GotMode { mode, .. }) = get_mode() {
             match mode {
                 Mode::CmdLine | Mode::InsertCmdLine | Mode::Terminal => {
@@ -234,6 +238,37 @@ impl Tracker {
         Ok(())
     }
 
+    pub fn maintain(&mut self) -> Result<()> {
+        let buf_curr = get_current_buf();
+        self.merge(buf_curr.clone())?;
+        self.delete_leaked_extmarks(buf_curr)?;
+        Ok(())
+    }
+
+    pub fn activate(&mut self, activate_debounce: Duration) -> Result<()> {
+        fn in_insert_mode() -> bool {
+            let Ok(GotMode { mode, .. }) = get_mode() else {
+                return true;
+            };
+            matches!(mode, Mode::Insert)
+        }
+
+        let list = &mut self.list;
+        let pos = list.pos;
+        if !in_insert_mode() && list.iter_from_future().any(|r| matches!(r.lazy_extmark, LazyExtmark::Inactive((_, _, inst)) if inst.elapsed() >= activate_debounce)) {
+            for (i, r) in list.iter_mut_from_future().enumerate() {
+                r.sync_extmark(recreate_mark_time(i, pos))?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn load_state(&mut self, path: &Path) -> Result<()> {
+        self.list = load_session(path).unwrap_or_default();
+        Ok(())
+    }
+
     pub fn step_past(&mut self) -> Result<()> {
         let Some(record) = self.list.step_past() else {
             return Ok(());
@@ -286,85 +321,5 @@ impl Default for Tracker {
             renewed_bufs: Vec::default(),
             latest_change: None,
         }
-    }
-}
-
-#[derive(Clone)]
-pub struct SyncTracker(Arc<Mutex<Tracker>>);
-
-impl SyncTracker {
-    pub fn run(&mut self) -> Result<()> {
-        let buf_curr = get_current_buf();
-
-        let mut tracker = self.lock()?;
-
-        tracker.track(buf_curr.clone())?;
-        if get_config().persistence.enable {
-            tracker.renew_buf_record_marks(buf_curr)?;
-        }
-
-        Ok(())
-    }
-
-    pub fn maintain(&mut self) -> Result<()> {
-        let buf_curr = get_current_buf();
-
-        let mut tracker = self.lock()?;
-
-        tracker.merge(buf_curr.clone())?;
-        tracker.delete_leaked_extmarks(buf_curr)?;
-
-        Ok(())
-    }
-
-    pub fn activate(&mut self) -> Result<()> {
-        fn in_insert_mode() -> bool {
-            let Ok(GotMode { mode, .. }) = get_mode() else {
-                return true;
-            };
-            matches!(mode, Mode::Insert)
-        }
-
-        let conf = get_config();
-        let list = &mut self.lock()?.list;
-        let pos = list.pos;
-        if !in_insert_mode() && list.iter_from_future().any(|r| matches!(r.lazy_extmark, LazyExtmark::Inactive((_, _, inst)) if inst.elapsed() >= conf.tracker.debounce_milliseconds.activate)) {
-            for (i, r) in list.iter_mut_from_future().enumerate() {
-                r.sync_extmark(recreate_mark_time(i, pos))?;
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn persist_state(&mut self, path: &Path) -> Result<()> {
-        let tracker = &mut self.lock()?;
-        tracker.persist_state(path)?;
-
-        Ok(())
-    }
-
-    pub fn lock(&self) -> Result<MutexGuard<Tracker>> {
-        Ok(self.0.lock().map_err(|e| anyhow!("{e}"))?)
-    }
-
-    pub fn load_state(&mut self, path: &Path) -> Result<()> {
-        let mut tracker = self.lock()?;
-
-        tracker.list = load_session(path).unwrap_or_default();
-
-        Ok(())
-    }
-}
-
-impl Default for SyncTracker {
-    fn default() -> Self {
-        Tracker::default().into()
-    }
-}
-
-impl From<Tracker> for SyncTracker {
-    fn from(value: Tracker) -> Self {
-        Self(Arc::new(Mutex::new(value)))
     }
 }

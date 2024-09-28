@@ -1,4 +1,6 @@
 mod completion;
+use std::sync::Mutex;
+
 pub use completion::*;
 
 mod opts;
@@ -7,7 +9,7 @@ use opts::*;
 use crate::{
     config::{get_config, JumpKeymap, WindowGridSize},
     functions::open::get_unique_bufs_priority,
-    state::{Record, SyncTracker, TrackList},
+    state::{Record, TrackList, Tracker},
     ui::grid::{open_grid, GridLayout},
     InputError, Result,
 };
@@ -15,7 +17,9 @@ use crate::{
 use anyhow::anyhow;
 use nvim_oxi::api::Buffer;
 
-pub fn get_follow(tracker: SyncTracker) -> impl Fn(Option<FollowOptions>) -> Result<()> {
+pub fn get_follow(
+    tracker: &'static Mutex<Tracker>,
+) -> impl Fn(Option<FollowOptions>) -> Result<()> {
     move |opts: Option<FollowOptions>| {
         let opts = opts.unwrap_or_default();
 

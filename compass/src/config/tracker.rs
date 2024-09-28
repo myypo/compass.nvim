@@ -5,18 +5,11 @@ use serde::{Deserialize, Deserializer};
 
 #[derive(Debug, Deserialize)]
 pub struct TrackerConfig {
-    #[serde(default = "default_enable")]
-    pub enable: bool,
-
     #[serde(default)]
     pub debounce_milliseconds: Debounce,
 
     #[serde(default = "default_ignored_patterns")]
     pub ignored_patterns: GlobSet,
-}
-
-fn default_enable() -> bool {
-    true
 }
 
 fn default_ignored_patterns() -> GlobSet {
@@ -75,7 +68,6 @@ impl Default for Debounce {
 impl Default for TrackerConfig {
     fn default() -> Self {
         Self {
-            enable: default_enable(),
             debounce_milliseconds: Debounce::default(),
             ignored_patterns: default_ignored_patterns(),
         }

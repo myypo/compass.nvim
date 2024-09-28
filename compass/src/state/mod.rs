@@ -7,7 +7,7 @@ mod session;
 use session::*;
 
 mod tracker;
-pub use tracker::{SyncTracker, Tracker};
+pub use tracker::Tracker;
 
 mod track_list;
 pub use track_list::{Mark, TrackList};
