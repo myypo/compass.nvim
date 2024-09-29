@@ -165,13 +165,35 @@ where
     }
 
     pub fn pop_past(&mut self) -> Option<T> {
-        let pos = self.active_close_past_idx()?;
+        let idx = self.active_close_past_idx()?;
 
-        if let Some(new_close) = self.ring.get_mut(pos + 1) {
-            new_close.as_close_past();
-        };
+        // Handling skip of inactive marks
+        let skipped = self.pos.map(|p| p + 1).unwrap_or(0).abs_diff(idx);
+        if skipped != 0 {
+            if let Some(p) = self.pos {
+                self.pos = Some(p + skipped);
+            } else {
+                self.pos = skipped.checked_sub(1);
+            }
+            if let Some(p) = self.pos.and_then(|p| p.checked_sub(1)) {
+                if let Some(f) = self.get_mut(p) {
+                    f.as_future();
+                }
+            }
+            if let Some(p) = self.pos {
+                if let Some(cf) = self.get_mut(p) {
+                    cf.as_close_future();
+                }
+            }
+        }
 
-        self.ring.remove(pos)
+        let popped = self.ring.remove(idx);
+
+        if let Some(cp) = self.get_mut(self.pos.map(|p| p + 1).unwrap_or(0)) {
+            cp.as_close_past();
+        }
+
+        popped
     }
 
     pub fn pop_future(&mut self) -> Option<T> {
@@ -399,6 +421,12 @@ mod tests {
     #[derive(Clone, Copy, Debug)]
     struct Stub {
         id: i32,
+        active: bool,
+    }
+    impl Stub {
+        fn new(id: i32, active: bool) -> Stub {
+            Stub { id, active }
+        }
     }
     impl PartialEq for Stub {
         fn eq(&self, other: &Self) -> bool {
@@ -407,7 +435,7 @@ mod tests {
     }
     impl From<i32> for Stub {
         fn from(id: i32) -> Self {
-            Stub { id }
+            Stub::new(id, true)
         }
     }
     impl IndicateCloseness for Stub {
@@ -429,7 +457,7 @@ mod tests {
     }
     impl Active for Stub {
         fn is_active(&self) -> bool {
-            true
+            self.active
         }
     }
 
@@ -809,6 +837,7 @@ mod tests {
         list.pos = None;
 
         assert_eq!(list.pop_past().unwrap(), popped);
+        assert_eq!(list.pos, None);
     }
 
     #[test]
@@ -821,6 +850,7 @@ mod tests {
         list.pos = Some(1);
 
         assert_eq!(list.pop_past().unwrap(), popped);
+        assert_eq!(list.pos, Some(1));
     }
 
     #[test]
@@ -874,5 +904,19 @@ mod tests {
 
         assert_eq!(list.pop_future().unwrap(), popped);
         assert_eq!(list.pos, None);
+    }
+
+    #[test]
+    fn pop_past_when_outside_ignoring_inactive() {
+        let mut list = TrackList::<Stub>::default();
+        let popped: Stub = 1.into();
+        let inactive: Stub = Stub::new(2, false);
+        list.push(popped);
+        list.push(inactive); // will become close future
+                             // we are here
+        list.pos = None;
+
+        assert_eq!(list.pop_past().unwrap(), popped);
+        assert_eq!(list.pos, Some(0));
     }
 }
