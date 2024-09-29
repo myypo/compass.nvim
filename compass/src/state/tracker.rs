@@ -5,7 +5,7 @@ use super::{
 use crate::{
     common_types::CursorPosition,
     config::get_config,
-    state::{ChangeTypeRecord, PlaceTypeRecord, Record, TrackList},
+    state::{Record, TrackList},
     ui::{
         namespace::get_namespace,
         record_mark::{recreate_mark_time, RecordMarkTime},
@@ -13,6 +13,7 @@ use crate::{
     InputError, Result,
 };
 use std::{
+    collections::HashMap,
     path::Path,
     time::{Duration, Instant},
 };
@@ -28,14 +29,11 @@ use nvim_oxi::api::{
 pub struct Tracker {
     pub list: TrackList<Record>,
     latest_flush: std::time::Instant,
-    renewed_bufs: Vec<Buffer>,
-    latest_change: Option<(Buffer, Tick)>,
+    visited_bufs: HashMap<Buffer, Tick>,
+    latest_buf: Option<Buffer>,
 }
 
-fn is_initial_tick(tick: Tick) -> bool {
-    const INITIAL_CHANGEDTICK: i32 = 2;
-    tick == INITIAL_CHANGEDTICK.into()
-}
+const INITIAL_CHANGEDTICK: Tick = Tick(2);
 
 impl Tracker {
     pub fn persist_state(&mut self, path: &Path) -> Result<()> {
@@ -47,38 +45,65 @@ impl Tracker {
         Ok(())
     }
 
-    /// Recreate the buffer's marks after opening it for the first time in restored session.
-    /// HACK: if we were to recreate extmarks on setup, their positions would have been broken
-    /// placing them all at the bottom of the file.
-    pub fn renew_buf_record_marks(&mut self, curr_buf: Buffer) -> Result<()> {
-        if self.renewed_bufs.iter().any(|b| b.clone() == curr_buf) {
-            return Ok(());
+    /// Record the buf as visited through the program's runtime
+    /// returns a buffer if there are any changes to be recorded
+    fn record_first_buf_visit(&mut self, curr_buf: Buffer, tick_new: Tick) -> Option<Buffer> {
+        let latest_buf = self.latest_buf.clone();
+        self.latest_buf = Some(curr_buf.clone());
+
+        if let Some(&prev_tick) = self.visited_bufs.get(&curr_buf) {
+            if prev_tick == tick_new {
+                return None;
+            }
+            self.visited_bufs.insert(curr_buf.clone(), tick_new);
+            return latest_buf;
         };
 
-        for r in self
-            .list
-            .iter_mut_from_future()
-            .filter(|r| r.buf == curr_buf)
-        {
-            r.load_extmark()?;
+        // Recreate the buffer's marks after opening it for the first time in restored session
+        // HACK: if we were to recreate extmarks on setup, their positions would have been broken
+        // placing them all at the bottom of the file
+        if get_config().persistence.enable {
+            for r in self
+                .list
+                .iter_mut_from_future()
+                .filter(|r| r.buf == curr_buf)
+            {
+                let _ = r.load_extmark();
+            }
         }
 
-        self.renewed_bufs.push(curr_buf);
+        self.visited_bufs
+            .insert(curr_buf.clone(), INITIAL_CHANGEDTICK);
+        None
+    }
 
-        Ok(())
+    /// Unset the latest buf to skip the next change
+    // TODO: it is a flaky method, because the changes might appear
+    // after the special buffer is closed
+    fn unset_latest_buf(&mut self) {
+        self.latest_buf = None
     }
 
     pub fn track(&mut self) -> Result<()> {
         let buf_new = get_current_buf();
-        if get_config().persistence.enable {
-            self.renew_buf_record_marks(buf_new.clone())?;
+
+        // Skip special buffers
+        if !get_option_value::<String>(
+            "buftype",
+            &OptionOpts::builder().scope(OptionScope::Local).build(),
+        )?
+        .is_empty()
+        {
+            // Unset it to avoid placing marks on changes that appear after interacting with special buffers
+            self.unset_latest_buf();
+            return Ok(());
         }
 
         if let Ok(GotMode { mode, .. }) = get_mode() {
             match mode {
                 Mode::CmdLine | Mode::InsertCmdLine | Mode::Terminal => {
-                    // Reset it to avoid placing marks on %s and other changing commands
-                    self.latest_change = None;
+                    // Unset it to avoid placing marks on %s and other changing commands
+                    self.unset_latest_buf();
                     return Ok(());
                 }
                 Mode::Insert => {
@@ -90,61 +115,40 @@ impl Tracker {
             return Ok(());
         }
 
-        let conf = get_config();
-        if conf.tracker.ignored_patterns.is_match(buf_new.get_name()?) {
+        let Ok(tick_new) = buf_new
+            .get_var::<i32>("changedtick")
+            .map(Into::<Tick>::into)
+        else {
             return Ok(());
-        }
-
-        let type_buf: String = get_option_value(
-            "buftype",
-            &OptionOpts::builder().scope(OptionScope::Local).build(),
-        )?;
-        // Skip special buffers
-        if !type_buf.is_empty() {
+        };
+        let Some(latest_buf) = self.record_first_buf_visit(buf_new.clone(), tick_new) else {
             return Ok(());
-        }
-
-        let tick_new = {
-            let Ok(tick_new) = buf_new
-                .get_var::<i32>("changedtick")
-                .map(Into::<Tick>::into)
-            else {
-                return Ok(());
-            };
-
-            // Ignore the first change in the buffer we just moved
-            // to make sure we do not place a mark for a non-interactive change
-            if let Some((latest_buf, latest_tick)) = &self.latest_change {
-                if *latest_buf != buf_new {
-                    self.latest_change = Some((buf_new, tick_new));
-                    return Ok(());
-                }
-                if *latest_tick == tick_new {
-                    return Ok(());
-                }
-            } else {
-                self.latest_change = Some((buf_new, tick_new));
-                return Ok(());
-            }
-
-            if is_initial_tick(tick_new) {
-                return Ok(());
-            }
-            if self.list.iter_from_future().any(|r| {
-                r.buf == buf_new
-                    && matches!(
-                        r.place_type,
-                        PlaceTypeRecord::Change(ChangeTypeRecord::Tick(t)) if t == tick_new
-                    )
-            }) {
-                return Ok(());
-            }
-
-            PlaceTypeRecord::Change(ChangeTypeRecord::Tick(tick_new))
         };
 
-        let win = get_current_win();
-        let pos_new: CursorPosition = win.get_cursor()?.into();
+        let modified: bool = get_option_value(
+            "modified",
+            &OptionOpts::builder().scope(OptionScope::Local).build(),
+        )
+        .unwrap_or(true);
+        if !modified {
+            return Ok(());
+        }
+
+        if get_config()
+            .tracker
+            .ignored_patterns
+            .is_match(buf_new.get_name()?)
+        {
+            return Ok(());
+        }
+
+        // Ignore the first change in the buffer we just moved to
+        // to make sure we do not place a mark for a non-interactive change
+        if latest_buf != buf_new.clone() {
+            return Ok(());
+        }
+
+        let pos_new: CursorPosition = get_current_win().get_cursor()?.into();
 
         if let Some(i) = self.list.iter_from_future().position(
             |Record {
@@ -157,7 +161,7 @@ impl Tracker {
             if let Some(nearby_record) = self.list.get_mut(i) {
                 nearby_record.deact_update(
                     buf_new,
-                    tick_new,
+                    tick_new.into(),
                     pos_new,
                     RecordMarkTime::PastClose,
                 )?;
@@ -168,7 +172,7 @@ impl Tracker {
         };
 
         self.activate_all()?;
-        let record_new = Record::try_new_inactive(buf_new, tick_new, pos_new)?;
+        let record_new = Record::try_new_inactive(buf_new, tick_new.into(), pos_new)?;
         self.list.push_inactive(record_new);
 
         Ok(())
@@ -318,8 +322,8 @@ impl Default for Tracker {
         Self {
             list: TrackList::default(),
             latest_flush: Instant::now(),
-            renewed_bufs: Vec::default(),
-            latest_change: None,
+            visited_bufs: HashMap::default(),
+            latest_buf: None,
         }
     }
 }

@@ -60,7 +60,7 @@ pub enum PlaceTypeRecord {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Decode, Encode, Deserialize)]
 #[serde(transparent)]
-pub struct Tick(i32);
+pub struct Tick(pub i32);
 
 impl Display for Tick {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -88,6 +88,12 @@ impl PlaceTypeRecord {
                 ChangeTypeRecord::Manual(t) => t,
             },
         }
+    }
+}
+
+impl From<Tick> for PlaceTypeRecord {
+    fn from(value: Tick) -> Self {
+        PlaceTypeRecord::Change(ChangeTypeRecord::Tick(value))
     }
 }
 
