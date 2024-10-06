@@ -40,7 +40,7 @@ pub struct RecordHighlightNames {
     pub sign: &'static str,
 }
 
-impl<'a> RecordHighlightList<'a> {
+impl RecordHighlightList<'_> {
     pub fn record_hl_names(typ: RecordMarkTime) -> RecordHighlightNames {
         match typ {
             RecordMarkTime::Past => RecordHighlightNames {
@@ -63,7 +63,7 @@ impl<'a> RecordHighlightList<'a> {
     }
 }
 
-impl<'a> Default for RecordHighlightList<'a> {
+impl Default for RecordHighlightList<'_> {
     fn default() -> Self {
         Self {
             past: RecordHighlight {
@@ -116,7 +116,7 @@ pub struct HintHighlightNames {
     pub path: &'static str,
 }
 
-impl<'a> HintHighlightList<'a> {
+impl HintHighlightList<'_> {
     pub fn hint_hl_names(typ: GridLayout) -> HintHighlightNames {
         match typ {
             GridLayout::Open => HintHighlightNames {
@@ -131,7 +131,7 @@ impl<'a> HintHighlightList<'a> {
     }
 }
 
-impl<'a> Default for HintHighlightList<'a> {
+impl Default for HintHighlightList<'_> {
     fn default() -> Self {
         Self {
             open: HintHighlight {

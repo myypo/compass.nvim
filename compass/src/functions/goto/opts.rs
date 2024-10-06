@@ -59,7 +59,7 @@ pub struct AbsoluteOptions {
     pub target: AbsoluteTarget,
 }
 
-impl<'a> TryFrom<CompassArgs<'a>> for GotoOptions {
+impl TryFrom<CompassArgs<'_>> for GotoOptions {
     type Error = Error;
 
     fn try_from(value: CompassArgs) -> Result<Self> {

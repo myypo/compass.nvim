@@ -21,7 +21,7 @@ impl<'de> de::Deserialize<'de> for WindowGridSize {
     {
         struct WindowGridSizeVisitor;
 
-        impl<'de> de::Visitor<'de> for WindowGridSizeVisitor {
+        impl de::Visitor<'_> for WindowGridSizeVisitor {
             type Value = WindowGridSize;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

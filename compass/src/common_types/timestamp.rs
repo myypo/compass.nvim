@@ -14,7 +14,7 @@ impl<'de> de::Deserialize<'de> for Timestamp {
     {
         struct TimestampVisitor;
 
-        impl<'de> de::Visitor<'de> for TimestampVisitor {
+        impl de::Visitor<'_> for TimestampVisitor {
             type Value = Timestamp;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

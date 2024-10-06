@@ -24,7 +24,7 @@ impl<'de> de::Deserialize<'de> for Namespace {
     {
         struct NamespaceVisitor;
 
-        impl<'de> de::Visitor<'de> for NamespaceVisitor {
+        impl de::Visitor<'_> for NamespaceVisitor {
             type Value = Namespace;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

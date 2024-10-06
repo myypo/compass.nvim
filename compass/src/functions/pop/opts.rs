@@ -29,7 +29,7 @@ impl Default for RelativeOptions {
     }
 }
 
-impl<'a> TryFrom<CompassArgs<'a>> for PopOptions {
+impl TryFrom<CompassArgs<'_>> for PopOptions {
     type Error = Error;
 
     fn try_from(value: CompassArgs) -> Result<Self> {
