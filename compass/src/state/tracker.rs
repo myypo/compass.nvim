@@ -1,5 +1,10 @@
 use super::{
-    frecency::FrecencyType, load_session, record::LazyExtmark, save_session, Session, Tick,
+    frecency::FrecencyType,
+    load_session,
+    record::LazyExtmark,
+    save_session,
+    track_list::{Active, IndicateCloseness},
+    Session, Tick,
 };
 use crate::{
     common_types::CursorPosition,
@@ -149,7 +154,7 @@ impl Tracker {
 
         let pos_new: CursorPosition = get_current_win().get_cursor()?.into();
 
-        self.activate_all()?;
+        self.activate_first()?;
         if let Some(i) = self.list.iter_from_future().position(
             |Record {
                  buf, lazy_extmark, ..
@@ -176,10 +181,15 @@ impl Tracker {
         Ok(())
     }
 
-    pub fn activate_all(&mut self) -> Result<()> {
-        let pos = self.list.pos;
-        for (i, r) in self.list.iter_mut_from_future().enumerate() {
-            r.sync_extmark(recreate_mark_time(i, pos))?;
+    /// Assumes there is always at most a single inactive mark
+    pub fn activate_first(&mut self) -> Result<()> {
+        if let Some(i) = self.list.iter_from_future().position(|r| !r.is_active()) {
+            if let Some(r) = self.list.get_mut(i) {
+                r.load_extmark()?;
+            }
+            if let Some(r) = self.list.get_mut(i + 1) {
+                r.as_past();
+            }
         }
 
         Ok(())
@@ -276,11 +286,16 @@ impl Tracker {
             return Ok(());
         };
         record.frecency.add_record(FrecencyType::RelativeGoto);
-        self.activate_all()
+        if let Some(r) = self.list.iter_mut_from_future().find(|r| !r.is_active()) {
+            r.load_extmark()?;
+        }
+        Ok(())
     }
 
     pub fn step_future(&mut self) -> Result<()> {
-        self.activate_all()?;
+        if let Some(r) = self.list.iter_mut_from_future().find(|r| !r.is_active()) {
+            r.load_extmark()?;
+        }
         let Some(record) = self.list.step_future(get_current_win()) else {
             return Ok(());
         };
@@ -289,7 +304,7 @@ impl Tracker {
     }
 
     pub fn goto_absolute(&mut self, idx_record: usize) -> Result<()> {
-        self.activate_all()?;
+        self.activate_first()?;
         let record = self.list.get_mut(idx_record).ok_or_else(|| {
             InputError::NoRecords(format!(
                 "non-existent index for absolute goto provided: {}",
@@ -305,11 +320,14 @@ impl Tracker {
             return Ok(());
         };
         record.delete()?;
-        self.activate_all()
+        if let Some(r) = self.list.iter_mut_from_future().find(|r| !r.is_active()) {
+            r.load_extmark()?;
+        }
+        Ok(())
     }
 
     pub fn pop_future(&mut self) -> Result<()> {
-        self.activate_all()?;
+        self.activate_first()?;
         let Some(mut record) = self.list.pop_future(get_current_win()) else {
             return Ok(());
         };

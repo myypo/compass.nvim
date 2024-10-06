@@ -27,6 +27,7 @@ pub fn get_place(tracker: &'static Mutex<Tracker>) -> impl Fn(Option<PlaceOption
 
                 let pos_curr = get_current_win().get_cursor()?.into();
 
+                tracker.activate_first()?;
                 let Some((i, old_record)) = tracker.list.iter_mut_from_future().enumerate().find(
                     |(
                         _,
