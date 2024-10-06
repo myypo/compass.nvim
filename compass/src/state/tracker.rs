@@ -3,7 +3,7 @@ use super::{
     load_session,
     record::LazyExtmark,
     save_session,
-    track_list::{Active, IndicateCloseness},
+    track_list::{Active, IndicateCloseness, Mark},
     Session, Tick,
 };
 use crate::{
@@ -304,6 +304,7 @@ impl Tracker {
                 idx_record
             ))
         })?;
+        record.jump(get_current_win())?;
         record.frecency.add_record(FrecencyType::AbsoluteGoto);
         Ok(())
     }

@@ -28,6 +28,8 @@ pub fn get_follow(
             return Err(InputError::NoRecords("record list is empty".to_owned()))?;
         }
 
+        tracker.activate_first()?;
+
         match opts {
             FollowOptions::Buf(BufOptions {
                 target,

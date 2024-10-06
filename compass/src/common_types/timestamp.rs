@@ -18,18 +18,20 @@ impl<'de> de::Deserialize<'de> for Timestamp {
             type Value = Timestamp;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("i64 seconds unix epoch timestamp ")
+                f.write_str("u64 seconds unix epoch timestamp")
             }
 
-            fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {
-                Ok(Timestamp(v))
+                TryInto::<i64>::try_into(v)
+                    .map(Timestamp)
+                    .map_err(|e| de::Error::custom(e))
             }
         }
 
-        deserializer.deserialize_i64(TimestampVisitor)
+        deserializer.deserialize_u64(TimestampVisitor)
     }
 }
 

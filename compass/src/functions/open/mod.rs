@@ -25,13 +25,15 @@ pub fn get_open(tracker: &'static Mutex<Tracker>) -> impl Fn(Option<OpenOptions>
             max_windows,
         } = opts.unwrap_or_default();
 
-        let list = &mut tracker.lock()?.list;
-        if list.is_empty() {
+        let tracker = &mut tracker.lock()?;
+        if tracker.list.is_empty() {
             return Err(InputError::NoRecords("record list is empty".to_owned()))?;
         }
 
+        tracker.activate_first()?;
+
         let record_list: Vec<&Record> = {
-            let iter = get_unique_bufs_priority(max_windows, list)?.into_iter();
+            let iter = get_unique_bufs_priority(max_windows, &mut tracker.list)?.into_iter();
             match record_types {
                 Some(record_types) => iter
                     .filter(|&r| record_types.iter().any(|&f| f == r.place_type.into()))

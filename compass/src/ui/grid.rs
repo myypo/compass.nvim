@@ -1,7 +1,7 @@
 use crate::{
     common_types::{CursorRange, Extmark},
     config::{JumpKeymap, WindowGridSize},
-    state::{ChangeTypeRecord, PlaceTypeRecord, Record},
+    state::{PlaceTypeRecord, Record},
     ui::{record_mark::create_hint_mark, tab::open_tab},
     Result,
 };
@@ -189,24 +189,6 @@ fn open_hidden_float() -> Result<(Window, Buffer, String)> {
     Ok((win, buf, old_guicursor))
 }
 
-fn get_goto_string(record: &Record) -> String {
-    match record.place_type {
-        PlaceTypeRecord::Change(typ) => match typ {
-            ChangeTypeRecord::Tick(t) => {
-                format!(r#"tick={{"buf":{},"tick":{}}}"#, record.buf.handle(), t)
-            }
-
-            ChangeTypeRecord::Manual(_) => {
-                format!(
-                    r#"time={{"buf":{},"millis":{}}}"#,
-                    record.buf.handle(),
-                    record.frecency.latest_timestamp()
-                )
-            }
-        },
-    }
-}
-
 fn set_buffer_jump_keymap(
     mut buf: Buffer,
     JumpKeymap { follow, immediate }: &JumpKeymap,
@@ -214,6 +196,16 @@ fn set_buffer_jump_keymap(
     layout: &GridLayout,
     limit_win: WindowGridSize,
 ) -> Result<()> {
+    fn get_goto_string(record: &Record) -> String {
+        match record.place_type {
+            PlaceTypeRecord::Change(_) => format!(
+                r#"time={{"buf":{},"timestamp":{}}}"#,
+                record.buf.handle(),
+                record.frecency.latest_timestamp()
+            ),
+        }
+    }
+
     buf.set_keymap(
         Mode::Normal,
         immediate.as_str(),
