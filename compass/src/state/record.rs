@@ -228,25 +228,6 @@ impl Record {
             LazyExtmark::Loaded(_) => Ok(()),
         }
     }
-
-    pub fn sync_extmark(&mut self, time: RecordMarkTime) -> Result<()> {
-        match &mut self.lazy_extmark {
-            LazyExtmark::Unloaded((_, t)) => {
-                *t = time;
-                Ok(())
-            }
-            LazyExtmark::Inactive((p, t, _)) => {
-                let extmark =
-                    create_record_mark(self.buf.clone(), &Into::<CursorRange>::into(p), *t)?;
-                self.lazy_extmark = LazyExtmark::Loaded(extmark.clone());
-
-                Ok(())
-            }
-            LazyExtmark::Loaded(e) => {
-                update_record_mark(e, self.buf.clone(), &e.get_range(self.buf.clone()), time)
-            }
-        }
-    }
 }
 
 impl IndicateCloseness for Record {

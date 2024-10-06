@@ -10,10 +10,7 @@ use crate::{
     common_types::CursorPosition,
     config::get_config,
     state::{Record, TrackList},
-    ui::{
-        namespace::get_namespace,
-        record_mark::{recreate_mark_time, RecordMarkTime},
-    },
+    ui::{namespace::get_namespace, record_mark::RecordMarkTime},
     InputError, Result,
 };
 use std::{
@@ -257,7 +254,7 @@ impl Tracker {
         Ok(())
     }
 
-    pub fn activate(&mut self, activate_debounce: Duration) -> Result<()> {
+    pub fn activate_ready(&mut self, activate_debounce: Duration) -> Result<()> {
         fn in_insert_mode() -> bool {
             let Ok(GotMode { mode, .. }) = get_mode() else {
                 return true;
@@ -265,12 +262,8 @@ impl Tracker {
             matches!(mode, Mode::Insert)
         }
 
-        let list = &mut self.list;
-        let pos = list.pos;
-        if !in_insert_mode() && list.iter_from_future().any(|r| matches!(r.lazy_extmark, LazyExtmark::Inactive((_, _, inst)) if inst.elapsed() >= activate_debounce)) {
-            for (i, r) in list.iter_mut_from_future().enumerate() {
-                r.sync_extmark(recreate_mark_time(i, pos))?;
-            }
+        if !in_insert_mode() && self.list.iter_from_future().any(|r| matches!(r.lazy_extmark, LazyExtmark::Inactive((_, _, inst)) if inst.elapsed() >= activate_debounce)) {
+            self.activate_first()?;
         }
 
         Ok(())

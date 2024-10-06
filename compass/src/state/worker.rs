@@ -58,7 +58,7 @@ impl Worker {
                     persist_inst = now;
                 }
 
-                tracker.activate(debounce.activate)?;
+                tracker.activate_ready(debounce.activate)?;
 
                 Ok(())
             };
