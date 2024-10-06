@@ -1,5 +1,31 @@
 <!-- panvimdoc-ignore-start -->
 
+<div align="center">
+    <h2>🧭 compass.nvim</h2>
+    <video width="95%" src="https://github.com/user-attachments/assets/5c0286a4-00b2-4b52-9630-7a2c3d20056f"/>
+</div>
+
+## ❓ What is this and why?
+
+Compass is an attempt to expand on the concept of `:h changelist` to allow:
+
+- Chronological navigation between changes located in different files.
+- Persisting change marks between vim sessions.
+- Providing optional visual feedback and other ergonomics.
+- Using recorded changes akin to builtin `:h mark`.
+
+The end goal of the plugin is to improve codebase navigation in a way
+that does not require proactive considerations on which location will be of interest later.
+
+## 🧪 State of the plugin
+
+The plugin can be considered **experimental**,
+currently there are certainly both bugs and conceptual problems.
+
+I will be grateful for both feedback/ideas
+on how to make the project align better with its core goals in [discussions](https://github.com/myypo/compass.nvim/discussions)
+and bug reports/feature requests filed as [issues](https://github.com/myypo/compass.nvim/issues)
+
 <!-- panvimdoc-ignore-end -->
 
 ## 🎯 Requirements
@@ -21,11 +47,12 @@
     "myypo/compass.nvim",
     build = "make",
     event = "BufReadPost",
+    opts = {},
 }
 ```
 
 The plugin uses [nvim-oxi](https://github.com/noib3/nvim-oxi)
-to make it possible to use Rust instead of lua/vimscript.
+to make it possible to use rust instead of lua/vimscript.
 
 The provided above installation snippet will download a pre-built by GitHub action library which should
 work out of the box, but you can also build it yourself, provided, you have Rust toolchain installed.
