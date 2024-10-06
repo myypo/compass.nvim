@@ -66,7 +66,7 @@ impl<'a> TryFrom<CompassArgs<'a>> for FollowOptions {
                     .get("max_windows")
                     .map(|&s| s.try_into())
                     .transpose()?
-                    .unwrap_or_default();
+                    .unwrap_or_else(default_max_windows);
 
                 Ok(Self::Buf(BufOptions {
                     target,

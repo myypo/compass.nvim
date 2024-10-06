@@ -10,17 +10,21 @@ use serde::Deserialize;
 
 #[derive(Deserialize, FromLua)]
 pub struct OpenOptions {
+    #[serde(default)]
     pub record_types: Option<Vec<RecordFilter>>,
+    #[serde(default = "default_max_windows")]
     pub max_windows: WindowGridSize,
+}
+
+fn default_max_windows() -> WindowGridSize {
+    get_config().picker.max_windows
 }
 
 impl Default for OpenOptions {
     fn default() -> Self {
-        let conf = &get_config().picker;
-
         Self {
             record_types: None,
-            max_windows: conf.max_windows,
+            max_windows: default_max_windows(),
         }
     }
 }
@@ -69,7 +73,7 @@ impl<'a> TryFrom<CompassArgs<'a>> for OpenOptions {
             .get("max_windows")
             .map(|&s| s.try_into())
             .transpose()?
-            .unwrap_or_default();
+            .unwrap_or_else(default_max_windows);
 
         Ok(Self {
             record_types,
