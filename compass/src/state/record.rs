@@ -80,6 +80,7 @@ impl From<i32> for Tick {
 pub enum ChangeTypeRecord {
     Tick(Tick),
     Manual(Option<Tick>),
+    Restored,
 }
 
 impl PlaceTypeRecord {
@@ -88,6 +89,7 @@ impl PlaceTypeRecord {
             Self::Change(c) => match c {
                 ChangeTypeRecord::Tick(t) => Some(t),
                 ChangeTypeRecord::Manual(t) => t,
+                ChangeTypeRecord::Restored => None,
             },
         }
     }

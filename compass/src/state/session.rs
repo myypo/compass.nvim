@@ -63,7 +63,12 @@ mod tests {
         let got = load_session(&path).unwrap();
         let mut want = list.iter_from_future();
         for r in got.iter_from_future() {
-            assert_eq!(r.place_type, want.next().unwrap().place_type);
+            let w = want.next().unwrap();
+            assert_eq!(r.buf, w.buf);
+            assert_eq!(
+                r.place_type,
+                PlaceTypeRecord::Change(ChangeTypeRecord::Restored)
+            );
         }
     }
 }

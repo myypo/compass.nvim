@@ -1,6 +1,9 @@
 use crate::{
     common_types::CursorPosition,
-    state::{frecency::Frecency, record::LazyExtmark, PlaceTypeRecord, Record, TrackList},
+    state::{
+        frecency::Frecency, record::LazyExtmark, ChangeTypeRecord, PlaceTypeRecord, Record,
+        TrackList,
+    },
     ui::record_mark::recreate_mark_time,
     Error, Result,
 };
@@ -39,16 +42,16 @@ impl TryFrom<&Record> for PersistentRecord {
     fn try_from(
         Record {
             buf,
-            place_type,
             lazy_extmark,
             frecency,
+            ..
         }: &Record,
     ) -> Result<Self> {
         let cursor_pos = lazy_extmark.pos(buf.clone());
 
         Ok(Self {
             buf_handle: buf.handle(),
-            place_type: *place_type,
+            place_type: PlaceTypeRecord::Change(ChangeTypeRecord::Restored),
             cursor_pos,
             // TODO: this is bad
             frecency: frecency.clone(),
