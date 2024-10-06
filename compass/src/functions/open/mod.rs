@@ -7,7 +7,7 @@ use opts::*;
 use crate::{
     common_types::CursorPosition,
     config::{get_config, WindowGridSize},
-    state::{Mark, Record, TrackList, Tracker},
+    state::{Record, TrackList, Tracker},
     ui::{
         grid::{open_grid, GridLayout},
         tab::{close_tab, open_tab},
@@ -16,7 +16,7 @@ use crate::{
 };
 use std::{collections::HashSet, sync::Mutex};
 
-use nvim_oxi::api::Buffer;
+use nvim_oxi::api::{set_current_buf, Buffer};
 
 pub fn get_open(tracker: &'static Mutex<Tracker>) -> impl Fn(Option<OpenOptions>) -> Result<()> {
     move |opts: Option<OpenOptions>| {
@@ -74,7 +74,7 @@ pub fn get_unique_bufs_priority(
     let frecency_list = track_list.frecency();
     for (i, r) in frecency_list.iter() {
         if seen_bufs.insert(r.buf.clone()) {
-            r.open_buf()?;
+            set_current_buf(&r.buf)?;
             idx_record_list.push(*i);
 
             if idx_record_list.len() >= max_windows.into() {
@@ -87,7 +87,7 @@ pub fn get_unique_bufs_priority(
         let frecency_list = track_list.frecency();
         for (i, r) in frecency_list.iter() {
             if idx_record_list.iter().all(|&col_idx| col_idx != *i) {
-                r.open_buf()?;
+                set_current_buf(&r.buf)?;
                 idx_record_list.push(*i);
             }
 

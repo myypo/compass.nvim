@@ -1,6 +1,5 @@
 use super::{
-    frecency::FrecencyType, load_session, record::LazyExtmark, save_session, track_list::Mark,
-    Session, Tick,
+    frecency::FrecencyType, load_session, record::LazyExtmark, save_session, Session, Tick,
 };
 use crate::{
     common_types::CursorPosition,
@@ -150,6 +149,7 @@ impl Tracker {
 
         let pos_new: CursorPosition = get_current_win().get_cursor()?.into();
 
+        self.activate_all()?;
         if let Some(i) = self.list.iter_from_future().position(
             |Record {
                  buf, lazy_extmark, ..
@@ -157,7 +157,6 @@ impl Tracker {
                 buf_new == *buf && { lazy_extmark.pos(buf_new.clone()).is_nearby(&pos_new) }
             },
         ) {
-            self.activate_all()?;
             if let Some(nearby_record) = self.list.get_mut(i) {
                 nearby_record.deact_update(
                     buf_new,
@@ -166,12 +165,11 @@ impl Tracker {
                     RecordMarkTime::PastClose,
                 )?;
             }
-            self.list.make_close_past_inactive(i);
+            self.list.make_inactive(i);
 
             return Ok(());
         };
 
-        self.activate_all()?;
         let record_new = Record::try_new_inactive(buf_new, tick_new.into(), pos_new)?;
         self.list.push_inactive(record_new);
 
@@ -274,19 +272,20 @@ impl Tracker {
     }
 
     pub fn step_past(&mut self) -> Result<()> {
-        let Some(record) = self.list.step_past() else {
+        let Some(record) = self.list.step_past(get_current_win()) else {
             return Ok(());
         };
-
-        record.goto(get_current_win(), FrecencyType::RelativeGoto)
+        record.frecency.add_record(FrecencyType::RelativeGoto);
+        self.activate_all()
     }
 
     pub fn step_future(&mut self) -> Result<()> {
         self.activate_all()?;
-        let Some(record) = self.list.step_future() else {
+        let Some(record) = self.list.step_future(get_current_win()) else {
             return Ok(());
         };
-        record.goto(get_current_win(), FrecencyType::RelativeGoto)
+        record.frecency.add_record(FrecencyType::RelativeGoto);
+        Ok(())
     }
 
     pub fn goto_absolute(&mut self, idx_record: usize) -> Result<()> {
@@ -297,23 +296,24 @@ impl Tracker {
                 idx_record
             ))
         })?;
-        record.goto(get_current_win(), FrecencyType::AbsoluteGoto)
+        record.frecency.add_record(FrecencyType::AbsoluteGoto);
+        Ok(())
     }
 
     pub fn pop_past(&mut self) -> Result<()> {
-        let Some(mut record) = self.list.pop_past() else {
+        let Some(mut record) = self.list.pop_past(get_current_win()) else {
             return Ok(());
         };
-        record.pop(get_current_win())?;
+        record.delete()?;
         self.activate_all()
     }
 
     pub fn pop_future(&mut self) -> Result<()> {
-        let Some(mut record) = self.list.pop_future() else {
+        self.activate_all()?;
+        let Some(mut record) = self.list.pop_future(get_current_win()) else {
             return Ok(());
         };
-        record.pop(get_current_win())?;
-        self.activate_all()
+        record.delete()
     }
 }
 

@@ -10,7 +10,7 @@ mod tracker;
 pub use tracker::Tracker;
 
 mod track_list;
-pub use track_list::{Mark, TrackList};
+pub use track_list::TrackList;
 
 mod worker;
 pub use worker::Worker;
