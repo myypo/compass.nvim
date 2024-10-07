@@ -1,4 +1,4 @@
-*compass.nvim.txt*       For Neovim >= 0.8.0       Last change: 2024 August 24
+*compass.nvim.txt*       For Neovim >= 0.8.0      Last change: 2024 October 07
 
 ==============================================================================
 Table of Contents                             *compass.nvim-table-of-contents*
@@ -30,11 +30,12 @@ LAZY.NVIM ~
         "myypo/compass.nvim",
         build = "make",
         event = "BufReadPost",
+        opts = {},
     }
 <
 
 The plugin uses nvim-oxi <https://github.com/noib3/nvim-oxi> to make it
-possible to use Rust instead of lua/vimscript.
+possible to use rust instead of lua/vimscript.
 
 The provided above installation snippet will download a pre-built by GitHub
 action library which should work out of the box, but you can also build it
@@ -105,7 +106,7 @@ Default configuration:
         -- Options for the plugin marks
         marks = {
             -- When applicable, how close an old plugin mark has to be to the newly placed one
-            -- for the old one to be moved to the new position instead of actually creating a new seperate mark
+            -- for the old one to be moved to the new position instead of actually creating a new separate mark
             -- Absence of a defined value means that the condition will always evaluate to false
             update_range = {
                 lines = {
@@ -132,7 +133,6 @@ Default configuration:
     
         -- Customization of the tracker automatically placing plugin marks on file edits etc.
         tracker = {
-            enable = true,
             -- How often to perform background actions specified in milliseconds
             -- Might end up waiting for longer than the provided value
             debounce_milliseconds = {
@@ -153,6 +153,7 @@ Default configuration:
         persistence = {
             enable = true, -- Whether to persist the plugin state on the disk
             path = nil, -- Absolute path to where to persist the state, by default it assumes the default neovim share path
+            interval_milliseconds = 3000, -- How often to write the plugin state to disk
         },
     
         -- Weights and options for the frecency algorithm
