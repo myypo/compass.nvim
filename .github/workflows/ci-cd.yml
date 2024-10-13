@@ -131,8 +131,6 @@ jobs:
           mv mac-aarch64/libcompass.dylib mac-aarch64.dylib
           mv mac-x86_64/libcompass.dylib mac-x86_64.dylib
           mv windows-x86_64/compass.dll windows-x86_64.dll
-          gh release delete nightly --yes || true
-          git push -d origin nightly || true
 
       - name: release
         uses: softprops/action-gh-release@v2
