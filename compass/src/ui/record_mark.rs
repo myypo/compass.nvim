@@ -163,9 +163,13 @@ fn basic_mark_builder(
         .sign_text(Into::<&SignText>::into(time))
         .end_row(line)
         .end_col(col + 1)
-        .invalidate(false)
-        .strict(false)
-        .undo_restore(false);
+        // Make sure to hide the extmark when it is deleted to avoid a blink
+        .invalidate(true)
+        // Not enabling undo restore plays badly with enabled invalidation
+        // as it will delete the mark completely instead of hiding it
+        .undo_restore(true)
+        // Has to be disabled for stability reasons
+        .strict(false);
 
     builder
 }
