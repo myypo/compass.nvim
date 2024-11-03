@@ -30,7 +30,7 @@ pub fn derive_deserializing_from_lua(input: TokenStream) -> TokenStream {
         }
 
         impl nvim_oxi::lua::Poppable for #ident {
-            unsafe fn pop(lstate: *mut nvim_oxi::lua::ffi::lua_State) -> core::result::Result<Self, nvim_oxi::lua::Error> {
+            unsafe fn pop(lstate: *mut nvim_oxi::lua::ffi::State) -> core::result::Result<Self, nvim_oxi::lua::Error> {
                 let obj = nvim_oxi::Object::pop(lstate)?;
                 Self::from_object(obj).map_err(|e| nvim_oxi::lua::Error::RuntimeError(e.to_string()))
             }

@@ -11,5 +11,5 @@ members = [
 rustflags = ["-Z", "threads=8"]
 
 [workspace.dependencies]
-strum = "0.26.2"
-strum_macros = "0.26.2"
+strum = "0.26.3"
+strum_macros = "0.26.4"
