@@ -9,11 +9,11 @@ crate-type = ["cdylib"]
 macros = { path = "../macros" }
 nvim-oxi = { git = "https://github.com/noib3/nvim-oxi.git", features = ["neovim-0-10", "test"] }
 
-serde = "1.0.214"
-serde_json = "1.0.132"
+serde = "1.0.215"
+serde_json = "1.0.133"
 
-anyhow = "1.0.92"
-thiserror = "1.0.67"
+anyhow = "1.0.93"
+thiserror = "2.0.3"
 
 typed-builder = "0.20.0"
 chrono = { version = "0.4.38" }
