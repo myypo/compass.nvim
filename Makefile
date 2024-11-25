@@ -1,6 +1,4 @@
-.PHONY: nightly stable build test watch lint
-
-VERSION = v0.1.0
+.PHONY: nightly build test watch lint
 
 ifeq ($(OS),Windows_NT)
     MACHINE = WIN32
@@ -54,9 +52,6 @@ endif
 
 nightly:
 	curl -L -o ./lua/compass.$(LIB_EXTENSION) https://github.com/myypo/compass.nvim/releases/download/nightly/$(TARGET).$(LIB_EXTENSION)
-
-stable:
-	curl -L -o ./lua/compass.$(LIB_EXTENSION) https://github.com/myypo/compass.nvim/releases/download/$(VERSION)/$(TARGET).$(LIB_EXTENSION)
 
 build:
 	cargo build --release
