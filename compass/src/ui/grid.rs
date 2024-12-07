@@ -1,5 +1,5 @@
 use crate::{
-    common_types::{CursorRange, Extmark},
+    common_types::{CursorRange, Extmark, LazyRedraw},
     config::{JumpKeymap, WindowGridSize},
     state::{PlaceTypeRecord, Record},
     ui::{record_mark::create_hint_mark, tab::open_tab},
@@ -32,6 +32,8 @@ pub fn open_grid<'a>(
     mut jump_iter: impl Iterator<Item = &'a JumpKeymap>,
 ) -> Result<()> {
     let len_record = slice_record.len();
+
+    LazyRedraw::start()?;
 
     open_tab()?;
 

@@ -9,3 +9,6 @@ pub use direction::*;
 
 mod extmark;
 pub use extmark::*;
+
+mod lazyredraw;
+pub use lazyredraw::*;

@@ -5,7 +5,7 @@ mod opts;
 use opts::*;
 
 use crate::{
-    common_types::CursorPosition,
+    common_types::{CursorPosition, LazyRedraw},
     config::{get_config, WindowGridSize},
     state::{Record, TrackList, Tracker},
     ui::{
@@ -70,6 +70,8 @@ pub fn get_unique_bufs_priority(
 ) -> Result<Vec<&Record>> {
     let mut seen_bufs = HashSet::<Buffer>::with_capacity(max_windows.into());
     let mut idx_record_list = Vec::<usize>::with_capacity(max_windows.into());
+
+    LazyRedraw::start()?;
 
     open_tab()?;
 
