@@ -14,8 +14,8 @@ use crate::{
     InputError, Result,
 };
 use std::{
-    collections::HashMap,
-    path::Path,
+    collections::{HashMap, HashSet},
+    path::{Path, PathBuf},
     time::{Duration, Instant},
 };
 
@@ -247,7 +247,48 @@ impl Tracker {
         Ok(())
     }
 
+    fn remove_deleted_file_records(&mut self) -> Result<()> {
+        let existing_bufs: Vec<Buffer> = {
+            let bufs = self
+                .list
+                .iter_from_future()
+                .map(|r| r.buf.clone())
+                .collect::<HashSet<Buffer>>()
+                .into_iter()
+                .collect::<Vec<Buffer>>();
+
+            bufs.into_iter()
+                .filter(|b| {
+                    b.get_name()
+                        .ok()
+                        .and_then(|f: PathBuf| f.try_exists().ok())
+                        .unwrap_or(false)
+                })
+                .collect()
+        };
+
+        let del_indices: Vec<usize> = self
+            .list
+            .iter_from_future()
+            .enumerate()
+            .filter_map(|(i, r)| -> Option<usize> {
+                if !existing_bufs.contains(&r.buf) {
+                    Some(i)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for i in del_indices.into_iter().rev() {
+            self.list.remove(i);
+        }
+
+        Ok(())
+    }
+
     pub fn maintain(&mut self) -> Result<()> {
+        self.remove_deleted_file_records()?;
         let buf_curr = get_current_buf();
         self.merge(buf_curr.clone())?;
         self.delete_leaked_extmarks(buf_curr)?;
