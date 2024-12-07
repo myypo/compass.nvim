@@ -9,6 +9,7 @@ use crate::{
 };
 
 use bitcode::{Decode, Encode};
+use nvim_oxi::api::Buffer;
 
 #[derive(Decode, Encode, Default)]
 pub struct Session {
@@ -85,25 +86,34 @@ impl TryFrom<Session> for TrackList<Record> {
         let mut track_list: TrackList<Record> =
             TrackList::with_capacity(session.data.records.len(), session.data.pos);
 
-        for (
-            i,
-            PersistentRecord {
-                buf_handle,
-                place_type,
-                frecency,
-                cursor_pos,
-            },
-        ) in session.data.records.into_iter().enumerate()
-        {
-            track_list.push_plain(Record {
-                buf: buf_handle.into(),
-                place_type,
-                lazy_extmark: LazyExtmark::Unloaded((
+        for r in session.data.records.into_iter().enumerate().filter_map(
+            |(
+                i,
+                PersistentRecord {
+                    buf_handle,
+                    place_type,
+                    frecency,
                     cursor_pos,
-                    recreate_mark_time(i, track_list.pos),
-                )),
-                frecency,
-            });
+                },
+            )| {
+                let buf: Buffer = buf_handle.into();
+
+                if !buf.is_valid() {
+                    return None;
+                }
+
+                Some(Record {
+                    buf,
+                    place_type,
+                    lazy_extmark: LazyExtmark::Unloaded((
+                        cursor_pos,
+                        recreate_mark_time(i, session.data.pos),
+                    )),
+                    frecency,
+                })
+            },
+        ) {
+            track_list.push_plain(r);
         }
 
         Ok(track_list)
