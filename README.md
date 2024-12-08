@@ -1,9 +1,7 @@
 <!-- panvimdoc-ignore-start -->
-
-<div align="center">
-    <h2>🧭 compass.nvim</h2>
-    <video width="95%" src="https://github.com/user-attachments/assets/5c0286a4-00b2-4b52-9630-7a2c3d20056f"/>
-</div>
+<h2 align="center">🧭 compass.nvim</h2>
+<video width="95%" src="https://github.com/user-attachments/assets/c19e1344-db86-428d-94ca-25c424d0cf3e"></video>
+<video width="95%" src="https://github.com/user-attachments/assets/15ede53c-aadc-457b-b6fc-47b134f88ee2"></video>
 
 ## ❓ What is this and why?
 
